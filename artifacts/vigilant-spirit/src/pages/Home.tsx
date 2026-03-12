@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Moon, Sun, BookOpen, Shield, Brain, Heart, ChevronRight, 
   ChevronDown, Sparkles, AlertTriangle, Check, X, Plus, Zap, Loader2,
-  Copy, RefreshCw, TrendingUp, Download, Eye, ChevronLeft, Wind
+  Copy, RefreshCw, TrendingUp, Download, Eye, ChevronLeft, Wind, Mic
 } from 'lucide-react';
 import { useClassifyDream, useModelHealth } from "@workspace/api-client-react";
 import { useJournalEntries, type JournalEntry, type JournalMode } from '@/hooks/use-journal';
@@ -152,6 +152,100 @@ function WordCountHint({ text, target = 30 }: { text: string; target?: number })
         <span className="flex items-center gap-1"><Check className="w-3 h-3" /> Good detail ({count} words)</span>
       ) : (
         <span>{count} / {target} words for best analysis</span>
+      )}
+    </div>
+  );
+}
+
+// ─── Speech-to-text ──────────────────────────────────────────────────────────
+
+// Module-level exclusive recording tracker: only one mic active at a time
+const _speechTracker: { stop: (() => void) | null } = { stop: null };
+
+function SpeechButton({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [isRecording, setIsRecording] = useState(false);
+  const [interim, setInterim] = useState('');
+  const recognitionRef = useRef<any>(null);
+  const valueRef = useRef(value);
+  useEffect(() => { valueRef.current = value; }, [value]);
+
+  const isSupported = typeof window !== 'undefined' &&
+    ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
+
+  const stopRecording = useCallback(() => {
+    recognitionRef.current?.stop();
+    setIsRecording(false);
+    setInterim('');
+  }, []);
+
+  useEffect(() => () => { recognitionRef.current?.abort?.(); }, []);
+
+  if (!isSupported) return null;
+
+  const startRecording = () => {
+    _speechTracker.stop?.();
+    _speechTracker.stop = stopRecording;
+
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const recognition = new SR();
+    recognitionRef.current = recognition;
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onresult = (event: any) => {
+      let finalText = '';
+      let interimText = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const t = event.results[i][0].transcript;
+        if (event.results[i].isFinal) finalText += t;
+        else interimText += t;
+      }
+      if (finalText) {
+        const cur = valueRef.current;
+        onChange((cur ? cur.trimEnd() + ' ' : '') + finalText.trim());
+        setInterim('');
+      } else {
+        setInterim(interimText);
+      }
+    };
+
+    recognition.onerror = () => { setIsRecording(false); setInterim(''); _speechTracker.stop = null; };
+    recognition.onend = () => { setIsRecording(false); setInterim(''); _speechTracker.stop = null; };
+
+    recognition.start();
+    setIsRecording(true);
+  };
+
+  const toggle = () => { if (isRecording) stopRecording(); else startRecording(); };
+
+  return (
+    <div className="relative shrink-0">
+      <button
+        type="button"
+        onClick={toggle}
+        title={isRecording ? 'Tap to stop recording' : 'Tap to dictate (Chrome / Edge)'}
+        aria-label={isRecording ? 'Stop voice input' : 'Start voice input'}
+        className={`flex items-center justify-center w-8 h-8 rounded-lg border transition-all ${
+          isRecording
+            ? 'bg-red-500/20 border-red-500/60 text-red-400 shadow-lg shadow-red-900/30'
+            : 'bg-slate-800/70 border-white/5 text-slate-500 hover:text-slate-200 hover:bg-slate-700'
+        }`}
+      >
+        {isRecording ? (
+          <span className="relative flex h-3 w-3 items-center justify-center">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+          </span>
+        ) : (
+          <Mic className="w-3.5 h-3.5" />
+        )}
+      </button>
+      {isRecording && interim && (
+        <div className="absolute bottom-full right-0 mb-2 bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-300 max-w-[240px] shadow-xl z-20 pointer-events-none whitespace-pre-wrap">
+          <span className="text-red-400 mr-1.5 text-[10px] font-semibold uppercase tracking-wide">Live</span>
+          <span className="italic opacity-80">{interim}</span>
+        </div>
       )}
     </div>
   );
@@ -823,9 +917,12 @@ function VigilantEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Incubation Request <span className="text-slate-500 font-normal ml-1">— What question do you bring?</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-medium text-slate-300">
+                      Incubation Request <span className="text-slate-500 font-normal">— What question do you bring?</span>
+                    </label>
+                    <SpeechButton value={formData.incubationRequest || ''} onChange={v => setFormData({ ...formData, incubationRequest: v })} />
+                  </div>
                   <textarea value={formData.incubationRequest || ''} onChange={e => setFormData({ ...formData, incubationRequest: e.target.value })}
                     placeholder="Lord, tonight I ask that you show me..." rows={3}
                     className="w-full bg-slate-950/50 rounded-xl px-4 py-3 text-white border border-slate-700/50 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all resize-none" />
@@ -860,16 +957,22 @@ function VigilantEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
 
               <div className="bg-slate-900/50 backdrop-blur border border-white/5 rounded-2xl p-6 space-y-5 shadow-xl">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Dream Title</label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-medium text-slate-300">Dream Title</label>
+                    <SpeechButton value={formData.title || ''} onChange={v => setFormData({ ...formData, title: v })} />
+                  </div>
                   <input type="text" value={formData.title || ''} onChange={e => setFormData({ ...formData, title: e.target.value })}
                     placeholder="Give this dream a memorable name..." 
                     className="w-full bg-slate-950/50 rounded-xl px-4 py-3.5 text-white border border-slate-700/50 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all min-h-[52px]" />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Narrative <span className="text-slate-500 font-normal ml-1">— Write in present tense</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-medium text-slate-300">
+                      Narrative <span className="text-slate-500 font-normal">— Write in present tense</span>
+                    </label>
+                    <SpeechButton value={formData.narrative || ''} onChange={v => setFormData({ ...formData, narrative: v })} />
+                  </div>
                   <textarea value={formData.narrative || ''} onChange={e => setFormData({ ...formData, narrative: e.target.value })}
                     placeholder="I am standing in... I see... I feel..." rows={8}
                     className="w-full bg-slate-950/50 rounded-xl px-4 py-3 text-white border border-slate-700/50 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all resize-none leading-relaxed" />
@@ -938,17 +1041,26 @@ function VigilantEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
               <div className="bg-slate-900/50 backdrop-blur border border-white/5 rounded-2xl p-6 space-y-5 shadow-xl">
                 <h3 className="font-display font-medium text-white">T-TAQ Analysis</h3>
                 <div>
-                  <label className="block text-sm text-slate-300 mb-2">Theme: Central conflict or plot?</label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm text-slate-300">Theme: Central conflict or plot?</label>
+                    <SpeechButton value={formData.theme || ''} onChange={v => setFormData({ ...formData, theme: v })} />
+                  </div>
                   <input type="text" value={formData.theme || ''} onChange={e => setFormData({ ...formData, theme: e.target.value })}
                     className="w-full bg-slate-950/50 rounded-xl px-4 py-3.5 text-white border border-slate-700/50 focus:border-primary outline-none transition-all min-h-[52px]" />
                 </div>
                 <div>
-                  <label className="block text-sm text-slate-300 mb-2">Affect: What did I feel?</label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm text-slate-300">Affect: What did I feel?</label>
+                    <SpeechButton value={formData.affect || ''} onChange={v => setFormData({ ...formData, affect: v })} />
+                  </div>
                   <input type="text" value={formData.affect || ''} onChange={e => setFormData({ ...formData, affect: e.target.value })}
                     className="w-full bg-slate-950/50 rounded-xl px-4 py-3.5 text-white border border-slate-700/50 focus:border-primary outline-none transition-all min-h-[52px]" />
                 </div>
                 <div>
-                  <label className="block text-sm text-slate-300 mb-2">Question: What does this ask of my waking life?</label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm text-slate-300">Question: What does this ask of my waking life?</label>
+                    <SpeechButton value={formData.question || ''} onChange={v => setFormData({ ...formData, question: v })} />
+                  </div>
                   <input type="text" value={formData.question || ''} onChange={e => setFormData({ ...formData, question: e.target.value })}
                     className="w-full bg-slate-950/50 rounded-xl px-4 py-3.5 text-white border border-slate-700/50 focus:border-primary outline-none transition-all min-h-[52px]" />
                 </div>
@@ -971,7 +1083,10 @@ function VigilantEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
               </div>
 
               <div className="bg-slate-900/50 backdrop-blur border border-white/5 rounded-2xl p-6 shadow-xl">
-                <label className="block text-sm font-medium text-slate-200 mb-3">Synthesis: What is God showing me?</label>
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-sm font-medium text-slate-200">Synthesis: What is God showing me?</label>
+                  <SpeechButton value={formData.interpretation || ''} onChange={v => setFormData({ ...formData, interpretation: v })} />
+                </div>
                 <textarea value={formData.interpretation || ''} onChange={e => setFormData({ ...formData, interpretation: e.target.value })}
                   placeholder="I believe the core message is..."
                   rows={4} className="w-full bg-slate-950/50 rounded-xl px-4 py-3 text-white border border-slate-700/50 focus:border-primary outline-none transition-all resize-none" />
@@ -1184,7 +1299,10 @@ function RestoredEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Release today's concerns</label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-medium text-slate-300">Release today's concerns</label>
+                    <SpeechButton value={formData.concerns || ''} onChange={v => setFormData({ ...formData, concerns: v })} />
+                  </div>
                   <textarea value={formData.concerns || ''} onChange={e => setFormData({ ...formData, concerns: e.target.value })}
                     placeholder="Write them down and let them go into God's hands..." rows={3}
                     className="w-full bg-slate-950/50 rounded-xl px-4 py-3 text-white border border-slate-700/50 focus:border-secondary outline-none transition-all resize-none" />
@@ -1225,12 +1343,18 @@ function RestoredEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
                 {formData.hadNightmare && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-5 pt-4 border-t border-white/10">
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">Dream Title</label>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-sm font-medium text-slate-300">Dream Title</label>
+                        <SpeechButton value={formData.title || ''} onChange={v => setFormData({ ...formData, title: v })} />
+                      </div>
                       <input type="text" value={formData.title || ''} onChange={e => setFormData({ ...formData, title: e.target.value })}
                         className="w-full bg-slate-950/50 rounded-xl px-4 py-3.5 text-white border border-slate-700/50 focus:border-red-500 outline-none transition-all min-h-[52px]" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">Core Threat <span className="text-slate-500 font-normal ml-1">(One sentence maximum)</span></label>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-sm font-medium text-slate-300">Core Threat <span className="text-slate-500 font-normal">(One sentence maximum)</span></label>
+                        <SpeechButton value={formData.coreThreat || ''} onChange={v => setFormData({ ...formData, coreThreat: v })} />
+                      </div>
                       <input type="text" value={formData.coreThreat || ''} onChange={e => setFormData({ ...formData, coreThreat: e.target.value })}
                         placeholder="The dream threatened me by..." 
                         className="w-full bg-slate-950/50 rounded-xl px-4 py-3.5 text-white border border-slate-700/50 focus:border-red-500 outline-none transition-all min-h-[52px]" />
@@ -1250,7 +1374,10 @@ function RestoredEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">Dream Sign <span className="text-slate-500 font-normal ml-1">(Recurring structural element)</span></label>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-sm font-medium text-slate-300">Dream Sign <span className="text-slate-500 font-normal">(Recurring structural element)</span></label>
+                        <SpeechButton value={formData.dreamSign || ''} onChange={v => setFormData({ ...formData, dreamSign: v })} />
+                      </div>
                       <input type="text" value={formData.dreamSign || ''} onChange={e => setFormData({ ...formData, dreamSign: e.target.value })}
                         placeholder="e.g., trying to run but legs feel heavy..." 
                         className="w-full bg-slate-950/50 rounded-xl px-4 py-3.5 text-white border border-slate-700/50 focus:border-red-500 outline-none transition-all min-h-[52px]" />
@@ -1293,21 +1420,30 @@ function RestoredEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
                   )}
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">Intervention Point</label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium text-slate-300">Intervention Point</label>
+                      <SpeechButton value={formData.interventionPoint || ''} onChange={v => setFormData({ ...formData, interventionPoint: v })} />
+                    </div>
                     <input type="text" value={formData.interventionPoint || ''} onChange={e => setFormData({ ...formData, interventionPoint: e.target.value })}
                       placeholder="The exact moment before the threat takes control..."
                       className="w-full bg-slate-950/50 rounded-xl px-4 py-3.5 text-white border border-slate-700/50 focus:border-secondary outline-none transition-all min-h-[52px]" />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">Mastery Action <span className="text-slate-500 font-normal ml-1">— How will you respond differently?</span></label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium text-slate-300">Mastery Action <span className="text-slate-500 font-normal">— How will you respond differently?</span></label>
+                      <SpeechButton value={formData.masteryAction || ''} onChange={v => setFormData({ ...formData, masteryAction: v })} />
+                    </div>
                     <textarea value={formData.masteryAction || ''} onChange={e => setFormData({ ...formData, masteryAction: e.target.value })}
                       placeholder="I recognize this is a dream. I turn, face the threat, and command it to leave in Jesus' name..." rows={3}
                       className="w-full bg-slate-950/50 rounded-xl px-4 py-3 text-white border border-slate-700/50 focus:border-secondary outline-none transition-all resize-none" />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">The Safe Ending</label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium text-slate-300">The Safe Ending</label>
+                      <SpeechButton value={formData.safeEnding || ''} onChange={v => setFormData({ ...formData, safeEnding: v })} />
+                    </div>
                     <textarea value={formData.safeEnding || ''} onChange={e => setFormData({ ...formData, safeEnding: e.target.value })}
                       placeholder="Rewrite the ending here so it resolves peacefully..." rows={4}
                       className="w-full bg-slate-950/50 rounded-xl px-4 py-3 text-white border border-slate-700/50 focus:border-secondary outline-none transition-all resize-none" />
@@ -1315,7 +1451,10 @@ function RestoredEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">Recognition Statement</label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium text-slate-300">Recognition Statement</label>
+                      <SpeechButton value={formData.recognitionStatement || ''} onChange={v => setFormData({ ...formData, recognitionStatement: v })} />
+                    </div>
                     <input type="text" value={formData.recognitionStatement || ''} onChange={e => setFormData({ ...formData, recognitionStatement: e.target.value })}
                       placeholder="In this dream, I learned that I have authority over..."
                       className="w-full bg-slate-950/50 rounded-xl px-4 py-3.5 text-white border border-slate-700/50 focus:border-secondary outline-none transition-all min-h-[52px]" />
@@ -1348,7 +1487,10 @@ function RestoredEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Spiritual Declaration</label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-medium text-slate-300">Spiritual Declaration</label>
+                    <SpeechButton value={formData.spiritualDeclaration || ''} onChange={v => setFormData({ ...formData, spiritualDeclaration: v })} />
+                  </div>
                   <textarea value={formData.spiritualDeclaration || ''} onChange={e => setFormData({ ...formData, spiritualDeclaration: e.target.value })}
                     placeholder="I declare that God has not given me a spirit of fear..." rows={3}
                     className="w-full bg-slate-950/50 rounded-xl px-4 py-3 text-white border border-slate-700/50 focus:border-secondary outline-none transition-all resize-none" />
