@@ -8,6 +8,7 @@
 
 export * from "./classifyRequest";
 export * from "./classifyResponse";
+export * from "./deleteEntry200";
 export * from "./dimensionAgreement";
 export * from "./dimensionFeatures";
 export * from "./dimensionInterpretations";
@@ -15,5 +16,12 @@ export * from "./dimensionProbabilities";
 export * from "./errorResponse";
 export * from "./featureWeight";
 export * from "./healthStatus";
+export * from "./journalEntry";
+export * from "./journalEntryData";
+export * from "./journalEntryMode";
+export * from "./listEntries200";
 export * from "./modelHealthStatus";
 export * from "./sourceInfo";
+export * from "./upsertEntryRequest";
+export * from "./upsertEntryRequestData";
+export * from "./upsertEntryRequestMode";

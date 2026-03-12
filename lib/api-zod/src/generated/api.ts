@@ -28,7 +28,7 @@ export const ModelHealthResponse = zod.object({
 });
 
 /**
- * Classifies dream text into Spiritual, Trauma, and Maintenance dimensions using keyword-based XAI
+ * Classifies dream text into Spiritual, Trauma, and Maintenance dimensions
  * @summary Classify a dream
  */
 
@@ -102,4 +102,66 @@ export const ClassifyDreamResponse = zod.object({
     Maintenance: zod.string(),
   }),
   wordCount: zod.number(),
+});
+
+/**
+ * Returns all journal entries for the user
+ * @summary List all journal entries
+ */
+export const ListEntriesResponse = zod.object({
+  entries: zod.array(
+    zod.object({
+      clientId: zod
+        .string()
+        .describe("Client-side generated ID (Date.now() as string)"),
+      mode: zod.enum(["vigilant", "restored"]),
+      phase: zod.string(),
+      entryDate: zod.string().describe("ISO date string"),
+      data: zod
+        .object({})
+        .passthrough()
+        .describe("Arbitrary entry fields (title, narrative, etc.)"),
+      createdAt: zod.string().describe("ISO timestamp"),
+      updatedAt: zod.string().describe("ISO timestamp"),
+    }),
+  ),
+});
+
+/**
+ * Creates or updates a journal entry (upserts by clientId)
+ * @summary Create or update a journal entry
+ */
+export const UpsertEntryBody = zod.object({
+  clientId: zod.string(),
+  mode: zod.enum(["vigilant", "restored"]),
+  phase: zod.string(),
+  entryDate: zod.string(),
+  data: zod.object({}).passthrough(),
+});
+
+export const UpsertEntryResponse = zod.object({
+  clientId: zod
+    .string()
+    .describe("Client-side generated ID (Date.now() as string)"),
+  mode: zod.enum(["vigilant", "restored"]),
+  phase: zod.string(),
+  entryDate: zod.string().describe("ISO date string"),
+  data: zod
+    .object({})
+    .passthrough()
+    .describe("Arbitrary entry fields (title, narrative, etc.)"),
+  createdAt: zod.string().describe("ISO timestamp"),
+  updatedAt: zod.string().describe("ISO timestamp"),
+});
+
+/**
+ * Deletes a journal entry by client ID
+ * @summary Delete a journal entry
+ */
+export const DeleteEntryParams = zod.object({
+  clientId: zod.coerce.string(),
+});
+
+export const DeleteEntryResponse = zod.object({
+  success: zod.boolean(),
 });

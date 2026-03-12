@@ -19,9 +19,13 @@ import type {
 import type {
   ClassifyRequest,
   ClassifyResponse,
+  DeleteEntry200,
   ErrorResponse,
   HealthStatus,
+  JournalEntry,
+  ListEntries200,
   ModelHealthStatus,
+  UpsertEntryRequest,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -186,7 +190,7 @@ export function useModelHealth<
 }
 
 /**
- * Classifies dream text into Spiritual, Trauma, and Maintenance dimensions using keyword-based XAI
+ * Classifies dream text into Spiritual, Trauma, and Maintenance dimensions
  * @summary Classify a dream
  */
 export const getClassifyDreamUrl = () => {
@@ -270,4 +274,252 @@ export const useClassifyDream = <
   TContext
 > => {
   return useMutation(getClassifyDreamMutationOptions(options));
+};
+
+/**
+ * Returns all journal entries for the user
+ * @summary List all journal entries
+ */
+export const getListEntriesUrl = () => {
+  return `/api/entries`;
+};
+
+export const listEntries = async (
+  options?: RequestInit,
+): Promise<ListEntries200> => {
+  return customFetch<ListEntries200>(getListEntriesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListEntriesQueryKey = () => {
+  return [`/api/entries`] as const;
+};
+
+export const getListEntriesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listEntries>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listEntries>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListEntriesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listEntries>>> = ({
+    signal,
+  }) => listEntries({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listEntries>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListEntriesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listEntries>>
+>;
+export type ListEntriesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all journal entries
+ */
+
+export function useListEntries<
+  TData = Awaited<ReturnType<typeof listEntries>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listEntries>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListEntriesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Creates or updates a journal entry (upserts by clientId)
+ * @summary Create or update a journal entry
+ */
+export const getUpsertEntryUrl = () => {
+  return `/api/entries`;
+};
+
+export const upsertEntry = async (
+  upsertEntryRequest: UpsertEntryRequest,
+  options?: RequestInit,
+): Promise<JournalEntry> => {
+  return customFetch<JournalEntry>(getUpsertEntryUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(upsertEntryRequest),
+  });
+};
+
+export const getUpsertEntryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertEntry>>,
+    TError,
+    { data: BodyType<UpsertEntryRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof upsertEntry>>,
+  TError,
+  { data: BodyType<UpsertEntryRequest> },
+  TContext
+> => {
+  const mutationKey = ["upsertEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof upsertEntry>>,
+    { data: BodyType<UpsertEntryRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return upsertEntry(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpsertEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof upsertEntry>>
+>;
+export type UpsertEntryMutationBody = BodyType<UpsertEntryRequest>;
+export type UpsertEntryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create or update a journal entry
+ */
+export const useUpsertEntry = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upsertEntry>>,
+    TError,
+    { data: BodyType<UpsertEntryRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof upsertEntry>>,
+  TError,
+  { data: BodyType<UpsertEntryRequest> },
+  TContext
+> => {
+  return useMutation(getUpsertEntryMutationOptions(options));
+};
+
+/**
+ * Deletes a journal entry by client ID
+ * @summary Delete a journal entry
+ */
+export const getDeleteEntryUrl = (clientId: string) => {
+  return `/api/entries/${clientId}`;
+};
+
+export const deleteEntry = async (
+  clientId: string,
+  options?: RequestInit,
+): Promise<DeleteEntry200> => {
+  return customFetch<DeleteEntry200>(getDeleteEntryUrl(clientId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteEntryMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteEntry>>,
+    TError,
+    { clientId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteEntry>>,
+  TError,
+  { clientId: string },
+  TContext
+> => {
+  const mutationKey = ["deleteEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteEntry>>,
+    { clientId: string }
+  > = (props) => {
+    const { clientId } = props ?? {};
+
+    return deleteEntry(clientId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteEntry>>
+>;
+
+export type DeleteEntryMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Delete a journal entry
+ */
+export const useDeleteEntry = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteEntry>>,
+    TError,
+    { clientId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteEntry>>,
+  TError,
+  { clientId: string },
+  TContext
+> => {
+  return useMutation(getDeleteEntryMutationOptions(options));
 };

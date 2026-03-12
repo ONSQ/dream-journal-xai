@@ -75,3 +75,57 @@ export interface ErrorResponse {
   success: boolean;
   error: string;
 }
+
+export type JournalEntryMode =
+  (typeof JournalEntryMode)[keyof typeof JournalEntryMode];
+
+export const JournalEntryMode = {
+  vigilant: "vigilant",
+  restored: "restored",
+} as const;
+
+/**
+ * Arbitrary entry fields (title, narrative, etc.)
+ */
+export type JournalEntryData = { [key: string]: unknown };
+
+export interface JournalEntry {
+  /** Client-side generated ID (Date.now() as string) */
+  clientId: string;
+  mode: JournalEntryMode;
+  phase: string;
+  /** ISO date string */
+  entryDate: string;
+  /** Arbitrary entry fields (title, narrative, etc.) */
+  data: JournalEntryData;
+  /** ISO timestamp */
+  createdAt: string;
+  /** ISO timestamp */
+  updatedAt: string;
+}
+
+export type UpsertEntryRequestMode =
+  (typeof UpsertEntryRequestMode)[keyof typeof UpsertEntryRequestMode];
+
+export const UpsertEntryRequestMode = {
+  vigilant: "vigilant",
+  restored: "restored",
+} as const;
+
+export type UpsertEntryRequestData = { [key: string]: unknown };
+
+export interface UpsertEntryRequest {
+  clientId: string;
+  mode: UpsertEntryRequestMode;
+  phase: string;
+  entryDate: string;
+  data: UpsertEntryRequestData;
+}
+
+export type ListEntries200 = {
+  entries: JournalEntry[];
+};
+
+export type DeleteEntry200 = {
+  success: boolean;
+};

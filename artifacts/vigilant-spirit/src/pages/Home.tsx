@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Moon, Sun, BookOpen, Shield, Brain, Heart, ChevronRight, 
-  ChevronDown, Sparkles, AlertTriangle, Check, X, Plus, Zap, Loader2 
+  ChevronDown, Sparkles, AlertTriangle, Check, X, Plus, Zap, Loader2,
+  Copy, RefreshCw, TrendingUp, Download, Eye, ChevronLeft, Wind
 } from 'lucide-react';
 import { useClassifyDream, useModelHealth } from "@workspace/api-client-react";
 import { useJournalEntries, type JournalEntry, type JournalMode } from '@/hooks/use-journal';
@@ -14,14 +15,19 @@ const SCRIPTURES = {
     { text: "In peace I will both lie down and sleep; for you alone, O Lord, make me dwell in safety.", ref: "Psalm 4:8" },
     { text: "I will not fear the terror of the night.", ref: "Psalm 91:5" },
     { text: "The Lord is my light and my salvation; whom shall I fear?", ref: "Psalm 27:1" },
+    { text: "He who dwells in the shelter of the Most High will rest in the shadow of the Almighty.", ref: "Psalm 91:1" },
+    { text: "Cast all your anxiety on him because he cares for you.", ref: "1 Peter 5:7" },
   ],
   fear: [
     { text: "For God gave us a spirit not of fear but of power and love and self-control.", ref: "2 Timothy 1:7" },
     { text: "When I am afraid, I put my trust in you.", ref: "Psalm 56:3" },
+    { text: "Have I not commanded you? Be strong and courageous. Do not be frightened.", ref: "Joshua 1:9" },
   ],
   dreams: [
     { text: "For God does speak—now one way, now another—though no one perceives it. In a dream, in a vision of the night...", ref: "Job 33:14-15" },
     { text: "In the last days, God says, I will pour out my Spirit on all people. Your sons and daughters will prophesy, your young men will see visions, your old men will dream dreams.", ref: "Acts 2:17" },
+    { text: "When you lie down, you will not be afraid; when you lie down, your sleep will be sweet.", ref: "Proverbs 3:24" },
+    { text: "I will bless the Lord who gives me counsel; in the night also my heart instructs me.", ref: "Psalm 16:7" },
   ]
 };
 
@@ -33,7 +39,29 @@ const SOURCE_INTERPRETATIONS: Record<string, any> = {
   mixed_all: { title: "Complex Multi-Dimensional Dream", icon: "🔮", color: "slate", guidance: "Apply careful discernment." }
 };
 
+const PROTOCOL_3AM = {
+  title: "3 AM Protocol",
+  steps: [
+    { label: "Ground: 5 Things You See", desc: "Name 5 objects in the room you can see right now. Say them aloud." },
+    { label: "Ground: 4 Things You Touch", desc: "Feel the bed, pillow, blanket, floor. Notice the physical sensation." },
+    { label: "Ground: 3 Sounds You Hear", desc: "Listen for ambient sounds — the hum of a fan, air, or silence itself." },
+    { label: "Ground: 2 Things You Smell", desc: "Focus on two scents, however faint. Fresh air, your pillow, a candle." },
+    { label: "Ground: 1 Deep Breath", desc: "Breathe in for 4 counts, hold for 4, exhale for 6. Repeat twice." },
+  ],
+  scripture: { text: "In peace I will both lie down and sleep; for you alone, O Lord, make me dwell in safety.", ref: "Psalm 4:8" },
+  prayer: "Lord, I am safe. You are with me. No weapon formed against me shall prosper. I receive Your peace now. In Jesus' name, Amen.",
+};
+
 // --- Helpers ---
+function getDailyScripture<T>(arr: T[]): T {
+  const dayIndex = Math.floor(Date.now() / 86_400_000) % arr.length;
+  return arr[dayIndex];
+}
+
+function wordCount(text: string): number {
+  return text ? text.trim().split(/\s+/).filter(Boolean).length : 0;
+}
+
 function collectAllEntryText(data: Record<string, any>): string {
   const fields = [
     data.title, data.narrative, data.incubationRequest, data.theme,
@@ -44,15 +72,84 @@ function collectAllEntryText(data: Record<string, any>): string {
   return fields.filter(Boolean).join(' ');
 }
 
+function formatEntryForExport(entry: JournalEntry): string {
+  const d = entry.data;
+  const date = new Date(entry.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const mode = entry.mode === 'vigilant' ? 'Vigilant Spirit (Dream)' : 'The Restored Night (Healing)';
+  const lines: string[] = [
+    `VIGILANT SPIRIT DREAM JOURNAL`,
+    `================================`,
+    `Date: ${date}`,
+    `Mode: ${mode}`,
+    `Phase Reached: ${entry.phase}`,
+    ``,
+  ];
+  if (d.title) lines.push(`Title: ${d.title}`, ``);
+  if (d.narrative) lines.push(`Narrative:`, d.narrative, ``);
+  if (d.incubationRequest) lines.push(`Incubation Request:`, d.incubationRequest, ``);
+  if (d.theme) lines.push(`Theme: ${d.theme}`);
+  if (d.affect) lines.push(`Affect: ${d.affect}`);
+  if (d.question) lines.push(`Question: ${d.question}`);
+  if (d.interpretation) lines.push(``, `Interpretation:`, d.interpretation, ``);
+  if (d.coreThreat) lines.push(`Core Threat: ${d.coreThreat}`);
+  if (d.masteryAction) lines.push(`Mastery Action:`, d.masteryAction, ``);
+  if (d.safeEnding) lines.push(`Safe Ending:`, d.safeEnding, ``);
+  if (d.spiritualDeclaration) lines.push(`Spiritual Declaration:`, d.spiritualDeclaration, ``);
+  if (d._classification) {
+    const c = d._classification;
+    lines.push(`XAI Classification:`);
+    lines.push(`  Spiritual: ${(c.probabilities.Spiritual * 100).toFixed(1)}%`);
+    lines.push(`  Trauma: ${(c.probabilities.Trauma * 100).toFixed(1)}%`);
+    lines.push(`  Maintenance: ${(c.probabilities.Maintenance * 100).toFixed(1)}%`);
+    lines.push(``);
+  }
+  lines.push(`================================`);
+  lines.push(`Exported from Vigilant Spirit Dream Journal`);
+  return lines.join('\n');
+}
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// --- Trends Helpers ---
+function getWeekKey(date: Date): string {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - d.getDay());
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 // --- Components ---
-function ClearboxAnalysis({ classification, entryData, isLoading, error }: { 
+function WordCountHint({ text, target = 30 }: { text: string; target?: number }) {
+  const count = wordCount(text);
+  const met = count >= target;
+  return (
+    <div className={`flex justify-end mt-1.5 text-xs font-medium transition-colors ${met ? 'text-emerald-400' : 'text-slate-500'}`}>
+      {met ? (
+        <span className="flex items-center gap-1"><Check className="w-3 h-3" /> Good detail ({count} words)</span>
+      ) : (
+        <span>{count} / {target} words for best analysis</span>
+      )}
+    </div>
+  );
+}
+
+function ClearboxAnalysis({ classification, entryData, isLoading, error, onReclassify }: { 
   classification: ClassifyResponse | null; 
   entryData: any; 
   mode: JournalMode; 
   isLoading: boolean; 
-  error: string | null 
+  error: string | null;
+  onReclassify?: () => void;
 }) {
   const [expandedDim, setExpandedDim] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   
   if (isLoading) {
     return (
@@ -69,9 +166,15 @@ function ClearboxAnalysis({ classification, entryData, isLoading, error }: {
       <div className="bg-destructive/20 border border-destructive/50 rounded-2xl p-6 shadow-lg shadow-destructive/5">
         <div className="flex items-start gap-4">
           <AlertTriangle className="w-8 h-8 text-destructive" />
-          <div>
+          <div className="flex-1">
             <h3 className="text-lg font-semibold text-destructive-foreground mb-2">Analysis Failed</h3>
-            <p className="text-slate-300 text-sm">{error}</p>
+            <p className="text-slate-300 text-sm mb-4">{error}</p>
+            {onReclassify && (
+              <button onClick={onReclassify}
+                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm flex items-center gap-2 transition-colors">
+                <RefreshCw className="w-4 h-4" /> Retry Analysis
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -90,11 +193,31 @@ function ClearboxAnalysis({ classification, entryData, isLoading, error }: {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-4 flex items-center gap-3 shadow-lg shadow-emerald-900/20">
-        <Zap className="w-5 h-5 text-emerald-400" />
-        <div>
-          <p className="text-emerald-200 text-sm font-medium">XAI Classification Complete</p>
-          <p className="text-emerald-400/70 text-xs">Powered by SHAP + LIME explainability</p>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl px-4 py-3 flex items-center gap-3 shadow-lg shadow-emerald-900/20 flex-1 min-w-0">
+          <Zap className="w-5 h-5 text-emerald-400 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-emerald-200 text-sm font-medium">XAI Classification Complete</p>
+            <p className="text-emerald-400/70 text-xs">Powered by SHAP + LIME explainability</p>
+          </div>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          {onReclassify && (
+            <button onClick={onReclassify}
+              className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-sm flex items-center gap-2 transition-colors border border-white/5 min-h-[44px]">
+              <RefreshCw className="w-4 h-4" />
+              <span className="hidden sm:inline">Re-analyze</span>
+            </button>
+          )}
+          <button 
+            onClick={async () => { 
+              const ok = await copyToClipboard(JSON.stringify(classification, null, 2));
+              if (ok) { setCopied(true); setTimeout(() => setCopied(false), 2000); }
+            }}
+            className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-sm flex items-center gap-2 transition-colors border border-white/5 min-h-[44px]">
+            {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+            <span className="hidden sm:inline">{copied ? 'Copied!' : 'Copy'}</span>
+          </button>
         </div>
       </div>
 
@@ -123,7 +246,7 @@ function ClearboxAnalysis({ classification, entryData, isLoading, error }: {
               <div key={dim.key} className="space-y-2">
                 <button 
                   onClick={() => setExpandedDim(isExpanded ? null : dim.key)} 
-                  className="w-full group"
+                  className="w-full group min-h-[44px]"
                 >
                   <div className="flex justify-between items-center mb-1.5">
                     <span className="font-medium text-slate-200 flex items-center gap-2 group-hover:text-white transition-colors">
@@ -214,9 +337,271 @@ function ClearboxAnalysis({ classification, entryData, isLoading, error }: {
   );
 }
 
+// --- 3 AM Protocol Modal ---
+function Protocol3AMModal({ onClose }: { onClose: () => void }) {
+  const [step, setStep] = useState(0);
+  const [breathingActive, setBreathingActive] = useState(false);
+  const [breathPhase, setBreathPhase] = useState<'inhale' | 'hold' | 'exhale'>('inhale');
+  const [breathCount, setBreathCount] = useState(4);
+
+  useEffect(() => {
+    if (!breathingActive) return;
+    const timer = setInterval(() => {
+      setBreathCount(prev => {
+        if (prev <= 1) {
+          setBreathPhase(p => {
+            const next = p === 'inhale' ? 'hold' : p === 'hold' ? 'exhale' : 'inhale';
+            return next;
+          });
+          return breathPhase === 'exhale' ? 4 : breathPhase === 'hold' ? 6 : 4;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [breathingActive, breathPhase]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-xl flex flex-col overflow-y-auto"
+    >
+      <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 sticky top-0 bg-slate-950/90 backdrop-blur-sm z-10">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-red-950/50 border border-red-800/50 flex items-center justify-center">
+            <AlertTriangle className="w-5 h-5 text-red-400" />
+          </div>
+          <div>
+            <h2 className="text-lg font-display font-semibold text-white">3 AM Protocol</h2>
+            <p className="text-xs text-slate-400">Emergency Grounding</p>
+          </div>
+        </div>
+        <button onClick={onClose} className="p-2.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center">
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      <div className="max-w-lg mx-auto w-full px-5 py-8 space-y-6 pb-20">
+        {/* Scripture */}
+        <div className="bg-slate-900/60 rounded-2xl p-5 border border-white/5">
+          <p className="text-lg text-slate-200 font-serif italic mb-2">"{PROTOCOL_3AM.scripture.text}"</p>
+          <p className="text-slate-500 text-sm">— {PROTOCOL_3AM.scripture.ref}</p>
+        </div>
+
+        {/* Breathing exercise */}
+        <div className="bg-slate-900/50 rounded-2xl p-6 border border-white/5 text-center">
+          <h3 className="font-display font-medium text-white mb-6 flex items-center justify-center gap-2">
+            <Wind className="w-5 h-5 text-teal-400" />
+            4-4-6 Breathing
+          </h3>
+          <div className={`relative w-32 h-32 rounded-full flex items-center justify-center text-4xl font-display font-bold text-white mx-auto transition-all duration-1000 ease-in-out shadow-[0_0_40px_rgba(0,0,0,0.3)]
+            ${breathPhase === 'inhale' ? 'bg-blue-500/40 scale-125 border border-blue-400/50' : 
+              breathPhase === 'hold' ? 'bg-purple-500/40 scale-100 border border-purple-400/50' : 
+              'bg-teal-500/40 scale-75 border border-teal-400/50'}`}>
+            {breathCount}
+            <div className="absolute inset-0 rounded-full border border-white/20 animate-ping" style={{ animationDuration: '3s' }} />
+          </div>
+          <p className="mt-6 text-base font-medium tracking-wider uppercase text-slate-300">{breathPhase}</p>
+          <button onClick={() => {
+            if (!breathingActive) { setBreathPhase('inhale'); setBreathCount(4); }
+            setBreathingActive(!breathingActive);
+          }}
+            className={`mt-5 px-8 py-3 rounded-xl font-medium transition-all min-h-[48px] ${breathingActive ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-teal-700 text-white hover:bg-teal-600'}`}>
+            {breathingActive ? 'Stop' : 'Begin Breathing'}
+          </button>
+        </div>
+
+        {/* 5-4-3-2-1 Grounding */}
+        <div className="space-y-3">
+          <h3 className="font-display font-medium text-white text-lg">5-4-3-2-1 Grounding</h3>
+          {PROTOCOL_3AM.steps.map((s, i) => (
+            <button
+              key={i}
+              onClick={() => setStep(i === step ? -1 : i)}
+              className={`w-full text-left rounded-xl border p-4 transition-all min-h-[56px] ${step === i ? 'bg-red-950/30 border-red-800/60' : 'bg-slate-900/50 border-white/5 hover:bg-slate-800/50'}`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${step === i ? 'bg-red-800/60 text-red-200' : 'bg-slate-800 text-slate-400'}`}>
+                  {i + 1}
+                </div>
+                <div className="flex-1">
+                  <p className={`font-medium text-sm ${step === i ? 'text-red-200' : 'text-slate-300'}`}>{s.label}</p>
+                  {step === i && <p className="text-xs text-slate-400 mt-1 leading-relaxed">{s.desc}</p>}
+                </div>
+                <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform shrink-0 ${step === i ? 'rotate-180' : ''}`} />
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {/* Prayer */}
+        <div className="bg-gradient-to-br from-indigo-950/40 to-purple-950/40 rounded-2xl p-6 border border-indigo-500/20">
+          <h3 className="font-display font-medium text-indigo-200 mb-3 flex items-center gap-2">
+            <Shield className="w-5 h-5 opacity-80" /> Declaration of Safety
+          </h3>
+          <p className="text-sm text-indigo-100/80 italic leading-relaxed">{PROTOCOL_3AM.prayer}</p>
+        </div>
+
+        <button onClick={onClose}
+          className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl font-medium transition-colors min-h-[52px]">
+          I Am Grounded. Close Protocol.
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+// --- Trends View ---
+function TrendsView({ entries, onBack }: { entries: JournalEntry[]; onBack: () => void }) {
+  const last8Weeks: { label: string; count: number; vigilant: number; restored: number }[] = [];
+  for (let i = 7; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i * 7);
+    const key = getWeekKey(d);
+    const weekEntries = entries.filter(e => getWeekKey(new Date(e.date)) === key);
+    last8Weeks.push({
+      label: key,
+      count: weekEntries.length,
+      vigilant: weekEntries.filter(e => e.mode === 'vigilant').length,
+      restored: weekEntries.filter(e => e.mode === 'restored').length,
+    });
+  }
+
+  const classifiedEntries = entries.filter(e => e.data._classification);
+  const avgSpiritual = classifiedEntries.length
+    ? classifiedEntries.reduce((s, e) => s + (e.data._classification.probabilities.Spiritual || 0), 0) / classifiedEntries.length
+    : 0;
+  const avgTrauma = classifiedEntries.length
+    ? classifiedEntries.reduce((s, e) => s + (e.data._classification.probabilities.Trauma || 0), 0) / classifiedEntries.length
+    : 0;
+  const avgMaintenance = classifiedEntries.length
+    ? classifiedEntries.reduce((s, e) => s + (e.data._classification.probabilities.Maintenance || 0), 0) / classifiedEntries.length
+    : 0;
+
+  const maxCount = Math.max(...last8Weeks.map(w => w.count), 1);
+  const totalEntries = entries.length;
+  const vigilantCount = entries.filter(e => e.mode === 'vigilant').length;
+  const restoredCount = entries.filter(e => e.mode === 'restored').length;
+  const completedCount = entries.filter(e => e.phase === 'analysis').length;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      transition={{ duration: 0.3 }}
+      className="space-y-8"
+    >
+      <div className="flex items-center gap-3">
+        <button onClick={onBack} className="p-2.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition-colors min-h-[44px]">
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+        <div>
+          <h2 className="text-2xl font-display font-semibold text-white flex items-center gap-2">
+            <TrendingUp className="w-6 h-6 text-primary" />
+            Dream Trends
+          </h2>
+          <p className="text-sm text-slate-400">Patterns across your journal</p>
+        </div>
+      </div>
+
+      {/* Stats Row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: 'Total Entries', value: totalEntries, color: 'text-white' },
+          { label: 'Dream (Vigilant)', value: vigilantCount, color: 'text-primary' },
+          { label: 'Healing (Restored)', value: restoredCount, color: 'text-secondary' },
+          { label: 'Fully Analyzed', value: completedCount, color: 'text-emerald-400' },
+        ].map(s => (
+          <div key={s.label} className="bg-slate-900/50 border border-white/5 rounded-2xl p-4 text-center">
+            <p className={`text-3xl font-display font-bold ${s.color}`}>{s.value}</p>
+            <p className="text-xs text-slate-500 mt-1 font-medium">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Weekly chart */}
+      <div className="bg-slate-900/50 border border-white/5 rounded-2xl p-6 shadow-xl">
+        <h3 className="font-display font-medium text-white mb-6">Weekly Entry Activity</h3>
+        {entries.length === 0 ? (
+          <div className="text-center py-8 text-slate-500">No entries yet to show trends.</div>
+        ) : (
+          <div className="flex items-end gap-2 h-36">
+            {last8Weeks.map((week, i) => (
+              <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                <div className="w-full flex flex-col justify-end gap-0.5" style={{ height: '100px' }}>
+                  {week.count > 0 && (
+                    <>
+                      <div
+                        className="w-full bg-secondary/70 rounded-t-sm"
+                        style={{ height: `${(week.restored / maxCount) * 100}px` }}
+                      />
+                      <div
+                        className="w-full bg-primary/80 rounded-t-sm"
+                        style={{ height: `${(week.vigilant / maxCount) * 100}px` }}
+                      />
+                    </>
+                  )}
+                  {week.count === 0 && (
+                    <div className="w-full h-1 bg-slate-800 rounded" />
+                  )}
+                </div>
+                <span className="text-[9px] text-slate-500 font-medium text-center leading-tight">{week.label}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-4 mt-4 justify-center">
+          <span className="flex items-center gap-1.5 text-xs text-slate-400"><span className="w-3 h-3 rounded-sm bg-primary/80 inline-block"></span>Dream</span>
+          <span className="flex items-center gap-1.5 text-xs text-slate-400"><span className="w-3 h-3 rounded-sm bg-secondary/70 inline-block"></span>Healing</span>
+        </div>
+      </div>
+
+      {/* XAI Averages */}
+      {classifiedEntries.length > 0 && (
+        <div className="bg-slate-900/50 border border-white/5 rounded-2xl p-6 shadow-xl">
+          <h3 className="font-display font-medium text-white mb-2">Average XAI Dimensions</h3>
+          <p className="text-xs text-slate-500 mb-6">Across {classifiedEntries.length} analyzed {classifiedEntries.length === 1 ? 'entry' : 'entries'}</p>
+          <div className="space-y-4">
+            {[
+              { label: 'Spiritual', value: avgSpiritual, gradient: 'from-indigo-600 to-primary' },
+              { label: 'Trauma', value: avgTrauma, gradient: 'from-destructive to-orange-500' },
+              { label: 'Maintenance', value: avgMaintenance, gradient: 'from-emerald-600 to-teal-400' },
+            ].map(dim => (
+              <div key={dim.label}>
+                <div className="flex justify-between text-sm mb-1.5">
+                  <span className="text-slate-300 font-medium">{dim.label}</span>
+                  <span className="text-slate-400 font-mono">{(dim.value * 100).toFixed(1)}%</span>
+                </div>
+                <div className="h-3 bg-slate-800 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full bg-gradient-to-r ${dim.gradient}`} style={{ width: `${dim.value * 100}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {classifiedEntries.length === 0 && (
+        <div className="bg-slate-900/30 rounded-2xl border border-white/5 border-dashed p-8 text-center">
+          <Brain className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+          <p className="text-slate-400 font-medium">No XAI data yet</p>
+          <p className="text-sm text-slate-500 mt-1">Complete an entry through the Analysis phase to see dimension averages.</p>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+// --- Entry Components ---
 function VigilantEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalEntry, onSave: (d: any) => void, onBack: () => void, onNextPhase: (p: string) => void }) {
   const [formData, setFormData] = useState<Record<string, any>>(entry.data || {});
-  const [classification, setClassification] = useState<ClassifyResponse | null>(null);
+  const [classification, setClassification] = useState<ClassifyResponse | null>(
+    entry.data?._classification || null
+  );
+  const [copied, setCopied] = useState(false);
   
   const classifyMutation = useClassifyDream();
   
@@ -229,16 +614,25 @@ function VigilantEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
   
   const currentPhaseIndex = phases.findIndex(p => p.id === entry.phase);
 
+  const runClassify = useCallback(() => {
+    const text = collectAllEntryText(formData);
+    if (text.length > 10) {
+      classifyMutation.mutate({ data: { text } }, {
+        onSuccess: (data) => {
+          setClassification(data);
+          const updated = { ...formData, _classification: data };
+          setFormData(updated);
+          onSave(updated);
+        }
+      });
+    }
+  }, [formData, classifyMutation, onSave]);
+
   useEffect(() => {
     if (entry.phase === 'analysis' && !classification && !classifyMutation.isPending) {
-      const text = collectAllEntryText(formData);
-      if (text.length > 10) {
-        classifyMutation.mutate({ data: { text } }, {
-          onSuccess: (data) => setClassification(data)
-        });
-      }
+      runClassify();
     }
-  }, [entry.phase, formData]);
+  }, [entry.phase]);
 
   const handleSave = () => onSave(formData);
   const handleNext = () => {
@@ -246,11 +640,16 @@ function VigilantEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
     if (currentPhaseIndex < phases.length - 1) onNextPhase(phases[currentPhaseIndex + 1].id);
   };
 
+  const handleExport = async () => {
+    const text = formatEntryForExport({ ...entry, data: formData });
+    const ok = await copyToClipboard(text);
+    if (ok) { setCopied(true); setTimeout(() => setCopied(false), 2500); }
+  };
+
   return (
     <div className="space-y-6 max-w-2xl mx-auto w-full">
-      {/* Progress */}
       <div className="flex items-center gap-3 mb-8">
-        <button onClick={onBack} className="p-2.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition-colors">
+        <button onClick={onBack} className="p-2.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center">
           <X className="w-5 h-5" />
         </button>
         <div className="flex-1 flex gap-2">
@@ -258,12 +657,17 @@ function VigilantEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
             <div key={phase.id} className="flex-1 h-2 rounded-full bg-slate-800 overflow-hidden">
               <div 
                 className={`h-full rounded-full transition-all duration-500 ${i <= currentPhaseIndex ? 'bg-primary' : 'bg-transparent'}`} 
-                style={{ width: i < currentPhaseIndex ? '100%' : i === currentPhaseIndex ? '100%' : '0%' }}
+                style={{ width: i <= currentPhaseIndex ? '100%' : '0%' }}
               />
             </div>
           ))}
         </div>
-        <span className="text-xs font-medium text-slate-400 w-8 text-right">{currentPhaseIndex + 1}/{phases.length}</span>
+        <div className="flex items-center gap-2">
+          <button onClick={handleExport} className="p-2.5 text-slate-500 hover:text-slate-300 hover:bg-white/5 rounded-xl transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center" title="Copy entry to clipboard">
+            {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Download className="w-4 h-4" />}
+          </button>
+          <span className="text-xs font-medium text-slate-400 w-8 text-right">{currentPhaseIndex + 1}/{phases.length}</span>
+        </div>
       </div>
 
       <AnimatePresence mode="wait">
@@ -287,13 +691,13 @@ function VigilantEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
                   <label className="block text-sm font-medium text-slate-300 mb-2">Date</label>
                   <input type="date" value={formData.date || new Date().toISOString().split('T')[0]}
                     onChange={e => setFormData({ ...formData, date: e.target.value })}
-                    className="w-full bg-slate-950/50 rounded-xl px-4 py-3 text-white border border-slate-700/50 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" />
+                    className="w-full bg-slate-950/50 rounded-xl px-4 py-3.5 text-white border border-slate-700/50 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all min-h-[52px]" />
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">Physical State</label>
                   <select value={formData.physicalState || ''} onChange={e => setFormData({ ...formData, physicalState: e.target.value })}
-                    className="w-full bg-slate-950/50 rounded-xl px-4 py-3 text-white border border-slate-700/50 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all appearance-none">
+                    className="w-full bg-slate-950/50 rounded-xl px-4 py-3.5 text-white border border-slate-700/50 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all appearance-none min-h-[52px]">
                     <option value="">Select current state...</option>
                     <option value="rested">Well-rested & Clear</option>
                     <option value="tired">Tired & Fatigued</option>
@@ -343,7 +747,7 @@ function VigilantEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
                   <label className="block text-sm font-medium text-slate-300 mb-2">Dream Title</label>
                   <input type="text" value={formData.title || ''} onChange={e => setFormData({ ...formData, title: e.target.value })}
                     placeholder="Give this dream a memorable name..." 
-                    className="w-full bg-slate-950/50 rounded-xl px-4 py-3 text-white border border-slate-700/50 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all" />
+                    className="w-full bg-slate-950/50 rounded-xl px-4 py-3.5 text-white border border-slate-700/50 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all min-h-[52px]" />
                 </div>
 
                 <div>
@@ -353,6 +757,7 @@ function VigilantEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
                   <textarea value={formData.narrative || ''} onChange={e => setFormData({ ...formData, narrative: e.target.value })}
                     placeholder="I am standing in... I see... I feel..." rows={8}
                     className="w-full bg-slate-950/50 rounded-xl px-4 py-3 text-white border border-slate-700/50 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all resize-none leading-relaxed" />
+                  <WordCountHint text={formData.narrative || ''} target={30} />
                 </div>
 
                 <div>
@@ -361,8 +766,8 @@ function VigilantEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
                     {['Vivid Colors', 'Spoken Words', 'Strong Sensations', 'Unusual Clarity'].map(detail => {
                       const isChecked = formData.vividDetails?.includes(detail) || false;
                       return (
-                        <label key={detail} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${isChecked ? 'bg-primary/10 border-primary/50 text-white' : 'bg-slate-950/30 border-slate-800 text-slate-400 hover:bg-slate-800/50'}`}>
-                          <div className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${isChecked ? 'bg-primary border-primary' : 'border-slate-600'}`}>
+                        <label key={detail} className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all min-h-[52px] ${isChecked ? 'bg-primary/10 border-primary/50 text-white' : 'bg-slate-950/30 border-slate-800 text-slate-400 hover:bg-slate-800/50'}`}>
+                          <div className={`w-5 h-5 rounded flex items-center justify-center border transition-colors shrink-0 ${isChecked ? 'bg-primary border-primary' : 'border-slate-600'}`}>
                             {isChecked && <Check className="w-3.5 h-3.5 text-white" />}
                           </div>
                           <input type="checkbox" className="hidden" checked={isChecked}
@@ -398,7 +803,7 @@ function VigilantEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
                   ].map(source => {
                     const isSelected = formData.sourceTest === source.id;
                     return (
-                      <label key={source.id} className={`flex items-start gap-4 p-4 rounded-xl border cursor-pointer transition-all ${isSelected ? 'bg-primary/10 border-primary/50' : 'bg-slate-950/50 border-slate-800 hover:bg-slate-800/50'}`}>
+                      <label key={source.id} className={`flex items-start gap-4 p-4 rounded-xl border cursor-pointer transition-all min-h-[64px] ${isSelected ? 'bg-primary/10 border-primary/50' : 'bg-slate-950/50 border-slate-800 hover:bg-slate-800/50'}`}>
                         <div className={`w-5 h-5 rounded-full border-2 mt-0.5 flex items-center justify-center flex-shrink-0 transition-colors ${isSelected ? 'border-primary' : 'border-slate-600'}`}>
                           {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-primary" />}
                         </div>
@@ -419,17 +824,17 @@ function VigilantEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
                 <div>
                   <label className="block text-sm text-slate-300 mb-2">Theme: Central conflict or plot?</label>
                   <input type="text" value={formData.theme || ''} onChange={e => setFormData({ ...formData, theme: e.target.value })}
-                    className="w-full bg-slate-950/50 rounded-xl px-4 py-3 text-white border border-slate-700/50 focus:border-primary outline-none transition-all" />
+                    className="w-full bg-slate-950/50 rounded-xl px-4 py-3.5 text-white border border-slate-700/50 focus:border-primary outline-none transition-all min-h-[52px]" />
                 </div>
                 <div>
                   <label className="block text-sm text-slate-300 mb-2">Affect: What did I feel?</label>
                   <input type="text" value={formData.affect || ''} onChange={e => setFormData({ ...formData, affect: e.target.value })}
-                    className="w-full bg-slate-950/50 rounded-xl px-4 py-3 text-white border border-slate-700/50 focus:border-primary outline-none transition-all" />
+                    className="w-full bg-slate-950/50 rounded-xl px-4 py-3.5 text-white border border-slate-700/50 focus:border-primary outline-none transition-all min-h-[52px]" />
                 </div>
                 <div>
                   <label className="block text-sm text-slate-300 mb-2">Question: What does this ask of my waking life?</label>
                   <input type="text" value={formData.question || ''} onChange={e => setFormData({ ...formData, question: e.target.value })}
-                    className="w-full bg-slate-950/50 rounded-xl px-4 py-3 text-white border border-slate-700/50 focus:border-primary outline-none transition-all" />
+                    className="w-full bg-slate-950/50 rounded-xl px-4 py-3.5 text-white border border-slate-700/50 focus:border-primary outline-none transition-all min-h-[52px]" />
                 </div>
               </div>
 
@@ -437,12 +842,12 @@ function VigilantEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
                 <h3 className="font-display font-medium text-white mb-4">Emotional Fruit</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <button onClick={() => setFormData({ ...formData, emotionalFruit: 'consolation' })}
-                    className={`p-5 rounded-xl border text-left transition-all ${formData.emotionalFruit === 'consolation' ? 'bg-emerald-950/40 border-emerald-500/50 shadow-lg shadow-emerald-900/20' : 'bg-slate-950/50 border-slate-800 hover:border-slate-600'}`}>
+                    className={`p-5 rounded-xl border text-left transition-all min-h-[80px] ${formData.emotionalFruit === 'consolation' ? 'bg-emerald-950/40 border-emerald-500/50 shadow-lg shadow-emerald-900/20' : 'bg-slate-950/50 border-slate-800 hover:border-slate-600'}`}>
                     <h4 className={`font-medium mb-1 ${formData.emotionalFruit === 'consolation' ? 'text-emerald-300' : 'text-slate-300'}`}>Consolation</h4>
                     <p className="text-xs text-slate-500">Peace, faith, hope, love</p>
                   </button>
                   <button onClick={() => setFormData({ ...formData, emotionalFruit: 'desolation' })}
-                    className={`p-5 rounded-xl border text-left transition-all ${formData.emotionalFruit === 'desolation' ? 'bg-red-950/40 border-red-500/50 shadow-lg shadow-red-900/20' : 'bg-slate-950/50 border-slate-800 hover:border-slate-600'}`}>
+                    className={`p-5 rounded-xl border text-left transition-all min-h-[80px] ${formData.emotionalFruit === 'desolation' ? 'bg-red-950/40 border-red-500/50 shadow-lg shadow-red-900/20' : 'bg-slate-950/50 border-slate-800 hover:border-slate-600'}`}>
                     <h4 className={`font-medium mb-1 ${formData.emotionalFruit === 'desolation' ? 'text-red-300' : 'text-slate-300'}`}>Desolation</h4>
                     <p className="text-xs text-slate-500">Fear, confusion, anxiety</p>
                   </button>
@@ -470,32 +875,33 @@ function VigilantEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
                 mode="vigilant"
                 isLoading={classifyMutation.isPending}
                 error={classifyMutation.error?.message || null}
+                onReclassify={() => { setClassification(null); runClassify(); }}
               />
             </div>
           )}
         </motion.div>
       </AnimatePresence>
 
-      <div className="flex gap-4 pt-6 border-t border-white/10 mt-8">
+      <div className="flex gap-3 pt-6 border-t border-white/10 mt-8 flex-wrap">
         {currentPhaseIndex > 0 && (
           <button onClick={() => onNextPhase(phases[currentPhaseIndex - 1].id)}
-            className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-medium transition-colors">
+            className="px-5 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-medium transition-colors min-h-[52px]">
             Back
           </button>
         )}
         <div className="flex-1"></div>
-        <button onClick={handleSave} className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-medium transition-colors">
+        <button onClick={handleSave} className="px-5 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-medium transition-colors min-h-[52px]">
           Save Draft
         </button>
         {currentPhaseIndex < phases.length - 1 ? (
           <button onClick={handleNext}
-            className="px-8 py-3 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-medium flex items-center gap-2 shadow-lg shadow-primary/20 transition-all active:scale-95">
+            className="px-7 py-3 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-medium flex items-center gap-2 shadow-lg shadow-primary/20 transition-all active:scale-95 min-h-[52px]">
             Next: {phases[currentPhaseIndex + 1].label}
             <ChevronRight className="w-5 h-5" />
           </button>
         ) : (
           <button onClick={() => { handleSave(); onBack(); }}
-            className="px-8 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium flex items-center gap-2 shadow-lg shadow-emerald-900/30 transition-all active:scale-95">
+            className="px-7 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium flex items-center gap-2 shadow-lg shadow-emerald-900/30 transition-all active:scale-95 min-h-[52px]">
             <Check className="w-5 h-5" />
             Complete Entry
           </button>
@@ -510,7 +916,10 @@ function RestoredEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
   const [breathingActive, setBreathingActive] = useState(false);
   const [breathPhase, setBreathPhase] = useState<'inhale' | 'hold' | 'exhale'>('inhale');
   const [breathCount, setBreathCount] = useState(4);
-  const [classification, setClassification] = useState<ClassifyResponse | null>(null);
+  const [classification, setClassification] = useState<ClassifyResponse | null>(
+    entry.data?._classification || null
+  );
+  const [copied, setCopied] = useState(false);
   
   const classifyMutation = useClassifyDream();
 
@@ -530,7 +939,7 @@ function RestoredEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
       setBreathCount(prev => {
         if (prev <= 1) {
           setBreathPhase(p => p === 'inhale' ? 'hold' : p === 'hold' ? 'exhale' : 'inhale');
-          return breathPhase === 'exhale' ? 4 : breathPhase === 'hold' ? 6 : 4; // next phase start count
+          return breathPhase === 'exhale' ? 4 : breathPhase === 'hold' ? 6 : 4;
         }
         return prev - 1;
       });
@@ -538,16 +947,25 @@ function RestoredEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
     return () => clearInterval(timer);
   }, [breathingActive, breathPhase]);
 
+  const runClassify = useCallback(() => {
+    const text = collectAllEntryText(formData);
+    if (text.length > 10) {
+      classifyMutation.mutate({ data: { text } }, {
+        onSuccess: (data) => {
+          setClassification(data);
+          const updated = { ...formData, _classification: data };
+          setFormData(updated);
+          onSave(updated);
+        }
+      });
+    }
+  }, [formData, classifyMutation, onSave]);
+
   useEffect(() => {
     if (entry.phase === 'analysis' && !classification && !classifyMutation.isPending) {
-      const text = collectAllEntryText(formData);
-      if (text.length > 10) {
-        classifyMutation.mutate({ data: { text } }, {
-          onSuccess: (data) => setClassification(data)
-        });
-      }
+      runClassify();
     }
-  }, [entry.phase, formData]);
+  }, [entry.phase]);
 
   const handleSave = () => onSave(formData);
   const handleNext = () => {
@@ -555,11 +973,16 @@ function RestoredEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
     if (currentPhaseIndex < phases.length - 1) onNextPhase(phases[currentPhaseIndex + 1].id);
   };
 
+  const handleExport = async () => {
+    const text = formatEntryForExport({ ...entry, data: formData });
+    const ok = await copyToClipboard(text);
+    if (ok) { setCopied(true); setTimeout(() => setCopied(false), 2500); }
+  };
+
   return (
     <div className="space-y-6 max-w-2xl mx-auto w-full">
-      {/* Progress */}
       <div className="flex items-center gap-3 mb-8">
-        <button onClick={onBack} className="p-2.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition-colors">
+        <button onClick={onBack} className="p-2.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center">
           <X className="w-5 h-5" />
         </button>
         <div className="flex-1 flex gap-2">
@@ -567,12 +990,17 @@ function RestoredEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
             <div key={phase.id} className="flex-1 h-2 rounded-full bg-slate-800 overflow-hidden">
               <div 
                 className={`h-full rounded-full transition-all duration-500 ${i <= currentPhaseIndex ? 'bg-secondary' : 'bg-transparent'}`} 
-                style={{ width: i < currentPhaseIndex ? '100%' : i === currentPhaseIndex ? '100%' : '0%' }}
+                style={{ width: i <= currentPhaseIndex ? '100%' : '0%' }}
               />
             </div>
           ))}
         </div>
-        <span className="text-xs font-medium text-slate-400 w-8 text-right">{currentPhaseIndex + 1}/{phases.length}</span>
+        <div className="flex items-center gap-2">
+          <button onClick={handleExport} className="p-2.5 text-slate-500 hover:text-slate-300 hover:bg-white/5 rounded-xl transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center" title="Copy entry to clipboard">
+            {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Download className="w-4 h-4" />}
+          </button>
+          <span className="text-xs font-medium text-slate-400 w-8 text-right">{currentPhaseIndex + 1}/{phases.length}</span>
+        </div>
       </div>
 
       <AnimatePresence mode="wait">
@@ -608,7 +1036,7 @@ function RestoredEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
                     if (!breathingActive) { setBreathPhase('inhale'); setBreathCount(4); }
                     setBreathingActive(!breathingActive);
                   }}
-                    className={`mt-6 px-8 py-3 rounded-xl font-medium transition-all ${breathingActive ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-secondary text-white shadow-lg shadow-secondary/20 hover:bg-secondary/90'}`}>
+                    className={`mt-6 px-8 py-3.5 rounded-xl font-medium transition-all min-h-[52px] ${breathingActive ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-secondary text-white shadow-lg shadow-secondary/20 hover:bg-secondary/90'}`}>
                     {breathingActive ? 'Stop Exercise' : 'Begin Breathing'}
                   </button>
                 </div>
@@ -628,7 +1056,7 @@ function RestoredEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-2">Physical State</label>
                     <select value={formData.physicalState || ''} onChange={e => setFormData({ ...formData, physicalState: e.target.value })}
-                      className="w-full bg-slate-950/50 rounded-xl px-4 py-3 text-white border border-slate-700/50 focus:border-secondary outline-none transition-all appearance-none">
+                      className="w-full bg-slate-950/50 rounded-xl px-4 py-3.5 text-white border border-slate-700/50 focus:border-secondary outline-none transition-all appearance-none min-h-[52px]">
                       <option value="">Select state...</option>
                       <option value="tense">Tense & Wired</option>
                       <option value="tired">Exhausted</option>
@@ -667,11 +1095,11 @@ function RestoredEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
                   <label className="block text-sm font-medium text-slate-200 mb-4 text-center">Did you experience a nightmare or threat simulation?</label>
                   <div className="flex gap-4">
                     <button onClick={() => setFormData({ ...formData, hadNightmare: true })}
-                      className={`flex-1 py-4 rounded-xl font-medium border-2 transition-all ${formData.hadNightmare === true ? 'bg-red-950/40 border-red-500 text-red-200 shadow-lg shadow-red-900/20' : 'bg-slate-950/50 border-transparent text-slate-400 hover:bg-slate-800'}`}>
+                      className={`flex-1 py-4 rounded-xl font-medium border-2 transition-all min-h-[56px] ${formData.hadNightmare === true ? 'bg-red-950/40 border-red-500 text-red-200 shadow-lg shadow-red-900/20' : 'bg-slate-950/50 border-transparent text-slate-400 hover:bg-slate-800'}`}>
                       Yes, a Nightmare
                     </button>
                     <button onClick={() => setFormData({ ...formData, hadNightmare: false })}
-                      className={`flex-1 py-4 rounded-xl font-medium border-2 transition-all ${formData.hadNightmare === false ? 'bg-emerald-950/40 border-emerald-500 text-emerald-200 shadow-lg shadow-emerald-900/20' : 'bg-slate-950/50 border-transparent text-slate-400 hover:bg-slate-800'}`}>
+                      className={`flex-1 py-4 rounded-xl font-medium border-2 transition-all min-h-[56px] ${formData.hadNightmare === false ? 'bg-emerald-950/40 border-emerald-500 text-emerald-200 shadow-lg shadow-emerald-900/20' : 'bg-slate-950/50 border-transparent text-slate-400 hover:bg-slate-800'}`}>
                       No, Peaceful Night
                     </button>
                   </div>
@@ -682,30 +1110,33 @@ function RestoredEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Dream Title</label>
                       <input type="text" value={formData.title || ''} onChange={e => setFormData({ ...formData, title: e.target.value })}
-                        className="w-full bg-slate-950/50 rounded-xl px-4 py-3 text-white border border-slate-700/50 focus:border-red-500 outline-none transition-all" />
+                        className="w-full bg-slate-950/50 rounded-xl px-4 py-3.5 text-white border border-slate-700/50 focus:border-red-500 outline-none transition-all min-h-[52px]" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Core Threat <span className="text-slate-500 font-normal ml-1">(One sentence maximum)</span></label>
                       <input type="text" value={formData.coreThreat || ''} onChange={e => setFormData({ ...formData, coreThreat: e.target.value })}
                         placeholder="The dream threatened me by..." 
-                        className="w-full bg-slate-950/50 rounded-xl px-4 py-3 text-white border border-slate-700/50 focus:border-red-500 outline-none transition-all" />
+                        className="w-full bg-slate-950/50 rounded-xl px-4 py-3.5 text-white border border-slate-700/50 focus:border-red-500 outline-none transition-all min-h-[52px]" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-3">Dominant Emotion</label>
                       <div className="flex flex-wrap gap-2">
-                        {['Fear', 'Helplessness', 'Panic', 'Shame', 'Anger', 'Grief'].map(emotion => (
-                          <button key={emotion} onClick={() => setFormData({ ...formData, dominantEmotion: emotion })}
-                            className={`px-4 py-2 rounded-lg text-sm transition-colors ${formData.dominantEmotion === emotion ? 'bg-red-600 text-white shadow-md shadow-red-900/30' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
-                            {emotion}
-                          </button>
-                        ))}
+                        {['Terror', 'Dread', 'Shame', 'Helplessness', 'Confusion', 'Rage', 'Grief'].map(emotion => {
+                          const isSelected = formData.dominantEmotion === emotion;
+                          return (
+                            <button key={emotion} onClick={() => setFormData({ ...formData, dominantEmotion: emotion })}
+                              className={`px-4 py-2 rounded-full text-sm font-medium border transition-all min-h-[40px] ${isSelected ? 'bg-red-950/50 border-red-500/60 text-red-200' : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-white hover:border-slate-500'}`}>
+                              {emotion}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Dream Sign <span className="text-slate-500 font-normal ml-1">(Recurring structural element)</span></label>
                       <input type="text" value={formData.dreamSign || ''} onChange={e => setFormData({ ...formData, dreamSign: e.target.value })}
                         placeholder="e.g., trying to run but legs feel heavy..." 
-                        className="w-full bg-slate-950/50 rounded-xl px-4 py-3 text-white border border-slate-700/50 focus:border-red-500 outline-none transition-all" />
+                        className="w-full bg-slate-950/50 rounded-xl px-4 py-3.5 text-white border border-slate-700/50 focus:border-red-500 outline-none transition-all min-h-[52px]" />
                     </div>
                   </motion.div>
                 )}
@@ -748,7 +1179,7 @@ function RestoredEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
                     <label className="block text-sm font-medium text-slate-300 mb-2">Intervention Point</label>
                     <input type="text" value={formData.interventionPoint || ''} onChange={e => setFormData({ ...formData, interventionPoint: e.target.value })}
                       placeholder="The exact moment before the threat takes control..."
-                      className="w-full bg-slate-950/50 rounded-xl px-4 py-3 text-white border border-slate-700/50 focus:border-secondary outline-none transition-all" />
+                      className="w-full bg-slate-950/50 rounded-xl px-4 py-3.5 text-white border border-slate-700/50 focus:border-secondary outline-none transition-all min-h-[52px]" />
                   </div>
 
                   <div>
@@ -763,13 +1194,14 @@ function RestoredEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
                     <textarea value={formData.safeEnding || ''} onChange={e => setFormData({ ...formData, safeEnding: e.target.value })}
                       placeholder="Rewrite the ending here so it resolves peacefully..." rows={4}
                       className="w-full bg-slate-950/50 rounded-xl px-4 py-3 text-white border border-slate-700/50 focus:border-secondary outline-none transition-all resize-none" />
+                    <WordCountHint text={formData.safeEnding || ''} target={20} />
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-2">Recognition Statement</label>
                     <input type="text" value={formData.recognitionStatement || ''} onChange={e => setFormData({ ...formData, recognitionStatement: e.target.value })}
                       placeholder="In this dream, I learned that I have authority over..."
-                      className="w-full bg-slate-950/50 rounded-xl px-4 py-3 text-white border border-slate-700/50 focus:border-secondary outline-none transition-all" />
+                      className="w-full bg-slate-950/50 rounded-xl px-4 py-3.5 text-white border border-slate-700/50 focus:border-secondary outline-none transition-all min-h-[52px]" />
                   </div>
                 </div>
               )}
@@ -820,32 +1252,33 @@ function RestoredEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
                 mode="restored"
                 isLoading={classifyMutation.isPending}
                 error={classifyMutation.error?.message || null}
+                onReclassify={() => { setClassification(null); runClassify(); }}
               />
             </div>
           )}
         </motion.div>
       </AnimatePresence>
 
-      <div className="flex gap-4 pt-6 border-t border-white/10 mt-8">
+      <div className="flex gap-3 pt-6 border-t border-white/10 mt-8 flex-wrap">
         {currentPhaseIndex > 0 && (
           <button onClick={() => onNextPhase(phases[currentPhaseIndex - 1].id)}
-            className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-medium transition-colors">
+            className="px-5 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-medium transition-colors min-h-[52px]">
             Back
           </button>
         )}
         <div className="flex-1"></div>
-        <button onClick={handleSave} className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-medium transition-colors">
+        <button onClick={handleSave} className="px-5 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-medium transition-colors min-h-[52px]">
           Save Draft
         </button>
         {currentPhaseIndex < phases.length - 1 ? (
           <button onClick={handleNext}
-            className="px-8 py-3 bg-secondary hover:bg-secondary/90 text-white rounded-xl font-medium flex items-center gap-2 shadow-lg shadow-secondary/20 transition-all active:scale-95">
+            className="px-7 py-3 bg-secondary hover:bg-secondary/90 text-white rounded-xl font-medium flex items-center gap-2 shadow-lg shadow-secondary/20 transition-all active:scale-95 min-h-[52px]">
             Next: {phases[currentPhaseIndex + 1].label}
             <ChevronRight className="w-5 h-5" />
           </button>
         ) : (
           <button onClick={() => { handleSave(); onBack(); }}
-            className="px-8 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium flex items-center gap-2 shadow-lg shadow-emerald-900/30 transition-all active:scale-95">
+            className="px-7 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium flex items-center gap-2 shadow-lg shadow-emerald-900/30 transition-all active:scale-95 min-h-[52px]">
             <Check className="w-5 h-5" />
             Complete Healing
           </button>
@@ -858,8 +1291,10 @@ function RestoredEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
 // --- Main View ---
 export default function Journal() {
   const [mode, setMode] = useState<JournalMode>('vigilant');
-  const [currentView, setCurrentView] = useState<'home' | 'entry'>('home');
+  const [currentView, setCurrentView] = useState<'home' | 'entry' | 'trends'>('home');
   const [currentEntry, setCurrentEntry] = useState<JournalEntry | null>(null);
+  const [show3AMProtocol, setShow3AMProtocol] = useState(false);
+  const [copiedEntry, setCopiedEntry] = useState<number | null>(null);
   
   const { entries, addOrUpdateEntry, isLoaded } = useJournalEntries();
   const { data: apiStatus } = useModelHealth();
@@ -869,6 +1304,7 @@ export default function Journal() {
   const modeEntries = entries.filter(e => e.mode === mode).slice(-7).reverse();
   const timeOfDay = new Date().getHours();
   const isEvening = timeOfDay >= 18 || timeOfDay < 6;
+  const scripture = getDailyScripture(SCRIPTURES[mode === 'vigilant' ? 'dreams' : 'protection']);
 
   const startNewEntry = () => {
     const newEntry: JournalEntry = {
@@ -889,51 +1325,67 @@ export default function Journal() {
     addOrUpdateEntry(updated);
   };
 
+  const handleExportEntryCard = async (entry: JournalEntry) => {
+    const text = formatEntryForExport(entry);
+    const ok = await copyToClipboard(text);
+    if (ok) { setCopiedEntry(entry.id); setTimeout(() => setCopiedEntry(null), 2500); }
+  };
+
   return (
     <div className="min-h-screen relative overflow-hidden">
-      {/* Background image overlay */}
       <div 
         className="absolute inset-0 z-[-1] opacity-30 mix-blend-overlay pointer-events-none bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: `url(${import.meta.env.BASE_URL}images/mystic-bg.png)` }}
       />
       
-      {/* Header */}
       <header className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-lg border-b border-white/5 shadow-md">
-        <div className="max-w-4xl mx-auto px-5 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="max-w-4xl mx-auto px-4 py-3.5 flex items-center justify-between">
+          <button 
+            onClick={() => setCurrentView('home')}
+            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+          >
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center border border-white/10">
               <Moon className={`w-5 h-5 ${mode === 'vigilant' ? 'text-primary' : 'text-secondary'}`} />
             </div>
-            <div>
+            <div className="hidden sm:block">
               <h1 className="text-lg font-display font-semibold text-white leading-tight">
                 {mode === 'vigilant' ? 'Vigilant Spirit' : 'The Restored Night'}
               </h1>
               <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">Dream Journal</p>
             </div>
-          </div>
-          <div className="flex p-1 bg-slate-900 rounded-lg border border-white/5">
+          </button>
+
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setMode('vigilant')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
-                mode === 'vigilant' ? 'bg-slate-800 text-primary shadow-sm' : 'text-slate-400 hover:text-white'
-              }`}
+              onClick={() => setCurrentView(currentView === 'trends' ? 'home' : 'trends')}
+              className={`p-2.5 rounded-xl transition-all min-h-[44px] min-w-[44px] flex items-center justify-center ${currentView === 'trends' ? 'bg-slate-800 text-primary' : 'text-slate-500 hover:text-white hover:bg-white/10'}`}
+              title="Trends"
             >
-              <Sparkles className="w-4 h-4" />
-              Dream
+              <TrendingUp className="w-5 h-5" />
             </button>
-            <button
-              onClick={() => setMode('restored')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
-                mode === 'restored' ? 'bg-slate-800 text-secondary shadow-sm' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Shield className="w-4 h-4" />
-              Healing
-            </button>
+            <div className="flex p-1 bg-slate-900 rounded-lg border border-white/5">
+              <button
+                onClick={() => { setMode('vigilant'); setCurrentView('home'); }}
+                className={`px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 min-h-[40px] ${
+                  mode === 'vigilant' ? 'bg-slate-800 text-primary shadow-sm' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Sparkles className="w-4 h-4" />
+                <span className="hidden sm:inline">Dream</span>
+              </button>
+              <button
+                onClick={() => { setMode('restored'); setCurrentView('home'); }}
+                className={`px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 min-h-[40px] ${
+                  mode === 'restored' ? 'bg-slate-800 text-secondary shadow-sm' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Shield className="w-4 h-4" />
+                <span className="hidden sm:inline">Healing</span>
+              </button>
+            </div>
           </div>
         </div>
         
-        {/* API Status Bar */}
         <div className={`px-5 py-1.5 text-xs flex justify-center items-center font-medium ${apiStatus?.status === 'healthy' ? 'bg-emerald-950/50 text-emerald-400 border-b border-emerald-900/50' : 'bg-amber-950/50 text-amber-400 border-b border-amber-900/50'}`}>
           {apiStatus?.status === 'healthy' 
             ? `✓ Model Online • ${apiStatus.features} features loaded • XAI Ready`
@@ -941,9 +1393,22 @@ export default function Journal() {
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="max-w-4xl mx-auto px-5 py-8 pb-24">
+      {/* 3 AM Protocol Modal */}
+      <AnimatePresence>
+        {show3AMProtocol && <Protocol3AMModal onClose={() => setShow3AMProtocol(false)} />}
+      </AnimatePresence>
+
+      <main className="max-w-4xl mx-auto px-4 py-6 pb-24">
         <AnimatePresence mode="wait">
+
+          {currentView === 'trends' && (
+            <TrendsView 
+              key="trends"
+              entries={entries}
+              onBack={() => setCurrentView('home')}
+            />
+          )}
+
           {currentView === 'home' && (
             <motion.div 
               key="home"
@@ -951,27 +1416,26 @@ export default function Journal() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
               transition={{ duration: 0.3 }}
-              className="space-y-8"
+              className="space-y-6"
             >
               {/* Welcome Card */}
-              <div className={`rounded-3xl p-8 relative overflow-hidden shadow-2xl border ${
+              <div className={`rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-2xl border ${
                 mode === 'vigilant' 
                   ? 'bg-gradient-to-br from-indigo-950/80 to-slate-900/90 border-indigo-500/20'
                   : 'bg-gradient-to-br from-purple-950/80 to-slate-900/90 border-purple-500/20'
               }`}>
-                {/* Decorative elements */}
                 <div className={`absolute -top-24 -right-24 w-64 h-64 rounded-full blur-3xl opacity-20 ${mode === 'vigilant' ? 'bg-primary' : 'bg-secondary'}`} />
                 
-                <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                  <div className="flex items-start gap-5">
-                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-lg ${mode === 'vigilant' ? 'bg-indigo-900/50 text-indigo-300' : 'bg-purple-900/50 text-purple-300'}`}>
-                      {isEvening ? <Moon className="w-7 h-7" /> : <Sun className="w-7 h-7" />}
+                <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
+                  <div className="flex items-start gap-4">
+                    <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-lg ${mode === 'vigilant' ? 'bg-indigo-900/50 text-indigo-300' : 'bg-purple-900/50 text-purple-300'}`}>
+                      {isEvening ? <Moon className="w-6 h-6 sm:w-7 sm:h-7" /> : <Sun className="w-6 h-6 sm:w-7 sm:h-7" />}
                     </div>
                     <div>
-                      <h2 className="text-3xl font-display font-semibold text-white mb-2">
+                      <h2 className="text-2xl sm:text-3xl font-display font-semibold text-white mb-2">
                         {isEvening ? 'Good Evening' : 'Good Morning'}
                       </h2>
-                      <p className="text-slate-300 mb-5 leading-relaxed max-w-md">
+                      <p className="text-slate-300 mb-5 leading-relaxed max-w-md text-sm sm:text-base">
                         {mode === 'vigilant' 
                           ? isEvening 
                             ? "Prepare your heart for divine communication tonight. Let go of the day's residue."
@@ -983,7 +1447,7 @@ export default function Journal() {
                       </p>
                       <button
                         onClick={startNewEntry}
-                        className={`px-6 py-3 rounded-xl font-medium flex items-center gap-2 shadow-lg transition-all active:scale-95 ${
+                        className={`px-6 py-3.5 rounded-xl font-medium flex items-center gap-2 shadow-lg transition-all active:scale-95 min-h-[52px] ${
                           mode === 'vigilant' 
                             ? 'bg-primary text-primary-foreground shadow-primary/20 hover:bg-primary/90' 
                             : 'bg-secondary text-secondary-foreground shadow-secondary/20 hover:bg-secondary/90'
@@ -997,24 +1461,26 @@ export default function Journal() {
                 </div>
               </div>
 
-              {/* Scripture Box */}
+              {/* Scripture Box — daily rotation */}
               <div className="bg-slate-900/40 backdrop-blur-md rounded-2xl p-6 border border-white/5 relative overflow-hidden group hover:bg-slate-900/60 transition-colors">
                 <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-transparent via-slate-500 to-transparent opacity-50" />
                 <p className="text-lg text-slate-200 font-serif italic mb-3">
-                  "{SCRIPTURES[mode === 'vigilant' ? 'dreams' : 'protection'][0].text}"
+                  "{scripture.text}"
                 </p>
-                <p className="text-slate-500 text-sm font-medium tracking-wide">— {SCRIPTURES[mode === 'vigilant' ? 'dreams' : 'protection'][0].ref}</p>
+                <p className="text-slate-500 text-sm font-medium tracking-wide">— {scripture.ref}</p>
               </div>
 
               {/* Quick Actions (Restored only) */}
               {mode === 'restored' && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <button className="bg-red-950/30 border border-red-900/50 rounded-2xl p-5 text-left hover:bg-red-950/50 transition-colors group">
+                  <button 
+                    onClick={() => setShow3AMProtocol(true)}
+                    className="bg-red-950/30 border border-red-900/50 rounded-2xl p-5 text-left hover:bg-red-950/50 transition-colors group min-h-[100px]">
                     <AlertTriangle className="w-8 h-8 text-red-400 mb-3 group-hover:scale-110 transition-transform" />
                     <h3 className="font-display font-medium text-red-200 text-lg">3 AM Protocol</h3>
                     <p className="text-sm text-red-200/60 mt-1">Emergency grounding techniques</p>
                   </button>
-                  <button className="bg-teal-950/30 border border-teal-900/50 rounded-2xl p-5 text-left hover:bg-teal-950/50 transition-colors group"
+                  <button className="bg-teal-950/30 border border-teal-900/50 rounded-2xl p-5 text-left hover:bg-teal-950/50 transition-colors group min-h-[100px]"
                     onClick={() => {
                       const newEntry: JournalEntry = { id: Date.now(), date: new Date().toISOString(), mode: 'restored', phase: 'evening', data: {} };
                       setCurrentEntry(newEntry);
@@ -1037,37 +1503,68 @@ export default function Journal() {
                 {modeEntries.length > 0 ? (
                   <div className="grid gap-3">
                     {modeEntries.map(entry => (
-                      <button
-                        key={entry.id}
-                        onClick={() => { setCurrentEntry(entry); setCurrentView('entry'); }}
-                        className="w-full bg-slate-900/50 backdrop-blur-sm rounded-xl p-5 text-left hover:bg-slate-800 border border-white/5 hover:border-white/10 transition-all flex justify-between items-center group"
-                      >
-                        <div>
-                          <p className="font-medium text-slate-200 text-lg group-hover:text-white transition-colors">{entry.data.title || 'Untitled Session'}</p>
-                          <div className="flex items-center gap-3 mt-2">
-                            <span className="text-sm text-slate-500 font-medium">
-                              {new Date(entry.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                            </span>
-                            <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md border ${
-                              entry.phase === 'analysis' ? 'bg-emerald-950/50 border-emerald-900 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400'
-                            }`}>
-                              {entry.phase}
-                            </span>
+                      <div key={entry.id} className="w-full bg-slate-900/50 backdrop-blur-sm rounded-xl border border-white/5 hover:border-white/10 transition-all flex items-center overflow-hidden group">
+                        <button
+                          onClick={() => { setCurrentEntry(entry); setCurrentView('entry'); }}
+                          className="flex-1 p-4 sm:p-5 text-left flex justify-between items-center gap-3 min-h-[72px]"
+                        >
+                          <div className="min-w-0">
+                            <p className="font-medium text-slate-200 text-base group-hover:text-white transition-colors truncate">{entry.data.title || 'Untitled Session'}</p>
+                            <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                              <span className="text-sm text-slate-500 font-medium">
+                                {new Date(entry.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                              </span>
+                              <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md border ${
+                                entry.phase === 'analysis' ? 'bg-emerald-950/50 border-emerald-900 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400'
+                              }`}>
+                                {entry.phase}
+                              </span>
+                              {entry.data._classification && (
+                                <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md border bg-indigo-950/50 border-indigo-900 text-indigo-400">
+                                  XAI ✓
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                        <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center group-hover:bg-slate-700 transition-colors">
-                          <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-white" />
-                        </div>
-                      </button>
+                          <ChevronRight className="w-5 h-5 text-slate-500 group-hover:text-white shrink-0" />
+                        </button>
+                        <button
+                          onClick={() => handleExportEntryCard(entry)}
+                          className="p-3 text-slate-600 hover:text-slate-300 border-l border-white/5 hover:bg-white/5 transition-colors self-stretch flex items-center min-w-[48px] justify-center"
+                          title="Copy entry"
+                        >
+                          {copiedEntry === entry.id ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="bg-slate-900/30 rounded-2xl border border-white/5 border-dashed p-12 text-center">
-                    <div className="w-16 h-16 bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <BookOpen className="w-8 h-8 text-slate-500" />
+                  <div className="bg-slate-900/30 rounded-2xl border border-white/5 border-dashed p-10 sm:p-14 text-center">
+                    <div className="w-20 h-20 bg-slate-800/60 rounded-full flex items-center justify-center mx-auto mb-5 shadow-inner">
+                      {mode === 'vigilant' 
+                        ? <Moon className="w-10 h-10 text-slate-600" />
+                        : <Shield className="w-10 h-10 text-slate-600" />
+                      }
                     </div>
-                    <p className="text-slate-400 font-medium">No entries yet.</p>
-                    <p className="text-sm text-slate-500 mt-1">Start your first journal entry to begin tracking.</p>
+                    <p className="text-slate-300 font-display font-medium text-lg mb-2">
+                      {mode === 'vigilant' ? 'Your dream journal awaits' : 'Your healing journey begins here'}
+                    </p>
+                    <p className="text-sm text-slate-500 max-w-xs mx-auto leading-relaxed">
+                      {mode === 'vigilant'
+                        ? 'Each morning is an opportunity to receive what God speaks in the night. Begin your first entry.'
+                        : 'The Restored Night helps you process nightmares safely and find peace. Start tonight.'}
+                    </p>
+                    <button
+                      onClick={startNewEntry}
+                      className={`mt-6 px-6 py-3 rounded-xl font-medium flex items-center gap-2 mx-auto transition-all active:scale-95 min-h-[48px] ${
+                        mode === 'vigilant'
+                          ? 'bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30'
+                          : 'bg-secondary/20 hover:bg-secondary/30 text-secondary border border-secondary/30'
+                      }`}
+                    >
+                      <Plus className="w-4 h-4" />
+                      Start First Entry
+                    </button>
                   </div>
                 )}
               </div>

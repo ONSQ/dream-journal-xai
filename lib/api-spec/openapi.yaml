@@ -11,6 +11,8 @@ tags:
     description: Health operations
   - name: classify
     description: Dream classification
+  - name: entries
+    description: Journal entry persistence
 paths:
   /healthz:
     get:
@@ -43,7 +45,7 @@ paths:
       operationId: classifyDream
       tags: [classify]
       summary: Classify a dream
-      description: Classifies dream text into Spiritual, Trauma, and Maintenance dimensions using keyword-based XAI
+      description: Classifies dream text into Spiritual, Trauma, and Maintenance dimensions
       requestBody:
         required: true
         content:
@@ -59,6 +61,74 @@ paths:
                 $ref: "#/components/schemas/ClassifyResponse"
         "400":
           description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /entries:
+    get:
+      operationId: listEntries
+      tags: [entries]
+      summary: List all journal entries
+      description: Returns all journal entries for the user
+      responses:
+        "200":
+          description: List of entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/JournalEntry"
+                required:
+                  - entries
+    post:
+      operationId: upsertEntry
+      tags: [entries]
+      summary: Create or update a journal entry
+      description: Creates or updates a journal entry (upserts by clientId)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertEntryRequest"
+      responses:
+        "200":
+          description: Saved entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalEntry"
+  /entries/{clientId}:
+    delete:
+      operationId: deleteEntry
+      tags: [entries]
+      summary: Delete a journal entry
+      description: Deletes a journal entry by client ID
+      parameters:
+        - name: clientId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                required:
+                  - success
+        "404":
+          description: Not found
           content:
             application/json:
               schema:
@@ -227,3 +297,54 @@ components:
       required:
         - success
         - error
+    JournalEntry:
+      type: object
+      properties:
+        clientId:
+          type: string
+          description: Client-side generated ID (Date.now() as string)
+        mode:
+          type: string
+          enum: [vigilant, restored]
+        phase:
+          type: string
+        entryDate:
+          type: string
+          description: ISO date string
+        data:
+          type: object
+          description: Arbitrary entry fields (title, narrative, etc.)
+        createdAt:
+          type: string
+          description: ISO timestamp
+        updatedAt:
+          type: string
+          description: ISO timestamp
+      required:
+        - clientId
+        - mode
+        - phase
+        - entryDate
+        - data
+        - createdAt
+        - updatedAt
+    UpsertEntryRequest:
+      type: object
+      properties:
+        clientId:
+          type: string
+        mode:
+          type: string
+          enum: [vigilant, restored]
+        phase:
+          type: string
+        entryDate:
+          type: string
+        data:
+          type: object
+      required:
+        - clientId
+        - mode
+        - phase
+        - entryDate
+        - data
