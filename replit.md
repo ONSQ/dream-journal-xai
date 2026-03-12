@@ -21,7 +21,8 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 ```text
 artifacts-monorepo/
 ├── artifacts/              # Deployable applications
-│   └── api-server/         # Express API server
+│   ├── api-server/         # Express API server
+│   └── vigilant-spirit/    # Vigilant Spirit Dream Journal (React + Vite)
 ├── lib/                    # Shared libraries
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
 │   ├── api-client-react/   # Generated React Query hooks
@@ -34,6 +35,34 @@ artifacts-monorepo/
 ├── tsconfig.json           # Root TS project references
 └── package.json            # Root package with hoisted devDeps
 ```
+
+## Vigilant Spirit Dream Journal
+
+**App:** `artifacts/vigilant-spirit` (React + Vite, served at `/`)
+
+**Description:** A spiritual dream journaling app based on *The Vigilant Spirit Dream Journal* and *The Restored Night Workbook* by Owen Eskew (ONSQ Press).
+
+**Two Modes:**
+1. **Dream Mode (Vigilant Spirit):** 4-phase journal flow (Pre-Sleep → Capture → Response → Analysis)
+2. **Healing Mode (Restored Night):** 5-phase nightmare healing flow (Evening → Witness → Restoration → Release → Analysis)
+
+**Features:**
+- Dream narrative capture with multi-field journaling
+- T-TAQ analysis (Theme, Affect, Question)
+- Source discernment test (Biological / Psychological / Spiritual)
+- 4-4-6 breathing exercise with animated circle
+- Image Rehearsal Therapy (IRT) for nightmare healing
+- Scripture integration throughout
+- XAI classification (Spiritual / Trauma / Maintenance dimensions)
+- SHAP + LIME explainability per dimension
+- API status bar showing model health
+
+**Backend:** `artifacts/api-server` provides:
+- `POST /api/classify` — keyword-based XAI classifier (mimics trained sklearn model output format)
+- `GET /api/health` — model health/status endpoint
+- `GET /api/healthz` — server health check
+
+**Data storage:** Journal entries stored in localStorage (client-side, no DB required)
 
 ## TypeScript & Composite Projects
 
@@ -50,47 +79,40 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 
 ## Packages
 
+### `artifacts/vigilant-spirit` (`@workspace/vigilant-spirit`)
+
+React + Vite frontend for the Vigilant Spirit Dream Journal.
+
+- Entry: `src/main.tsx`
+- App: `src/App.tsx` — QueryClient, Wouter router
+- Pages: `src/pages/Home.tsx` — All UI components (HomeView, VigilantEntry, RestoredEntry, ClearboxAnalysis)
+- Hooks: `src/hooks/use-journal.ts` — localStorage journal management
+- Depends on: `@workspace/api-client-react`
+
 ### `artifacts/api-server` (`@workspace/api-server`)
 
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
+Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation.
 
 - Entry: `src/index.ts` — reads `PORT`, starts Express
 - App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
+- Routes: `src/routes/index.ts` mounts sub-routers
+  - `src/routes/health.ts` — `GET /api/healthz`
+  - `src/routes/classify.ts` — `POST /api/classify`, `GET /api/health`
 - Depends on: `@workspace/db`, `@workspace/api-zod`
-- `pnpm --filter @workspace/api-server run dev` — run the dev server
-- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
-- Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
 
 ### `lib/db` (`@workspace/db`)
 
-Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client instance and schema models.
-
-- `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
-- `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
-- `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
-- Exports: `.` (pool, db, schema), `./schema` (schema only)
-
-Production migrations are handled by Replit when publishing. In development, we just use `pnpm --filter @workspace/db run push`, and we fallback to `pnpm --filter @workspace/db run push-force`.
+Database layer using Drizzle ORM with PostgreSQL. Currently no tables (journal entries use localStorage).
 
 ### `lib/api-spec` (`@workspace/api-spec`)
 
-Owns the OpenAPI 3.1 spec (`openapi.yaml`) and the Orval config (`orval.config.ts`). Running codegen produces output into two sibling packages:
-
-1. `lib/api-client-react/src/generated/` — React Query hooks + fetch client
-2. `lib/api-zod/src/generated/` — Zod schemas
-
+OpenAPI 3.1 spec with: healthz, model health, and dream classification endpoints.
 Run codegen: `pnpm --filter @workspace/api-spec run codegen`
 
 ### `lib/api-zod` (`@workspace/api-zod`)
 
-Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used by `api-server` for response validation.
+Generated Zod schemas: `HealthCheckResponse`, `ModelHealthResponse`, `ClassifyDreamBody`, `ClassifyDreamResponse`.
 
 ### `lib/api-client-react` (`@workspace/api-client-react`)
 
-Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
-
-### `scripts` (`@workspace/scripts`)
-
-Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
+Generated React Query hooks: `useHealthCheck`, `useModelHealth`, `useClassifyDream`.

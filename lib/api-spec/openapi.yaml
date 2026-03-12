@@ -1,15 +1,16 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Vigilant Spirit Dream Journal API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: classify
+    description: Dream classification
 paths:
   /healthz:
     get:
@@ -24,6 +25,44 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /health:
+    get:
+      operationId: modelHealth
+      tags: [health]
+      summary: Model health check
+      description: Returns XAI model status
+      responses:
+        "200":
+          description: Model status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelHealthStatus"
+  /classify:
+    post:
+      operationId: classifyDream
+      tags: [classify]
+      summary: Classify a dream
+      description: Classifies dream text into Spiritual, Trauma, and Maintenance dimensions using keyword-based XAI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassifyRequest"
+      responses:
+        "200":
+          description: Classification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClassifyResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +72,158 @@ components:
           type: string
       required:
         - status
-
+    ModelHealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+        model_loaded:
+          type: boolean
+        shap_available:
+          type: boolean
+        lime_available:
+          type: boolean
+        features:
+          type: integer
+      required:
+        - status
+        - model_loaded
+        - shap_available
+        - lime_available
+        - features
+    ClassifyRequest:
+      type: object
+      properties:
+        text:
+          type: string
+          minLength: 1
+      required:
+        - text
+    FeatureWeight:
+      type: object
+      properties:
+        word:
+          type: string
+        weight:
+          type: number
+      required:
+        - word
+        - weight
+    DimensionFeatures:
+      type: object
+      properties:
+        Spiritual:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeatureWeight"
+        Trauma:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeatureWeight"
+        Maintenance:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeatureWeight"
+      required:
+        - Spiritual
+        - Trauma
+        - Maintenance
+    DimensionProbabilities:
+      type: object
+      properties:
+        Spiritual:
+          type: number
+        Trauma:
+          type: number
+        Maintenance:
+          type: number
+      required:
+        - Spiritual
+        - Trauma
+        - Maintenance
+    DimensionAgreement:
+      type: object
+      properties:
+        Spiritual:
+          type: number
+        Trauma:
+          type: number
+        Maintenance:
+          type: number
+      required:
+        - Spiritual
+        - Trauma
+        - Maintenance
+    DimensionInterpretations:
+      type: object
+      properties:
+        Spiritual:
+          type: string
+        Trauma:
+          type: string
+        Maintenance:
+          type: string
+      required:
+        - Spiritual
+        - Trauma
+        - Maintenance
+    SourceInfo:
+      type: object
+      properties:
+        title:
+          type: string
+        icon:
+          type: string
+        color:
+          type: string
+        guidance:
+          type: string
+      required:
+        - title
+        - icon
+        - color
+        - guidance
+    ClassifyResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        probabilities:
+          $ref: "#/components/schemas/DimensionProbabilities"
+        shap:
+          $ref: "#/components/schemas/DimensionFeatures"
+        lime:
+          $ref: "#/components/schemas/DimensionFeatures"
+        agreement:
+          $ref: "#/components/schemas/DimensionAgreement"
+        sourceType:
+          type: string
+        sourceInfo:
+          $ref: "#/components/schemas/SourceInfo"
+        interpretation:
+          type: string
+        dimensionInterpretations:
+          $ref: "#/components/schemas/DimensionInterpretations"
+        wordCount:
+          type: integer
+      required:
+        - success
+        - probabilities
+        - shap
+        - lime
+        - agreement
+        - sourceType
+        - sourceInfo
+        - interpretation
+        - dimensionInterpretations
+        - wordCount
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        error:
+          type: string
+      required:
+        - success
+        - error

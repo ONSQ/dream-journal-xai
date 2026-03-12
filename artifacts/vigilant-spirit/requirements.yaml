@@ -1,0 +1,14 @@
+packages:
+  "framer-motion": "For smooth phase transitions and breathing animation"
+  "clsx": "For conditional class string joining"
+  "tailwind-merge": "For merging tailwind classes safely"
+  "date-fns": "For formatting dates"
+
+images:
+  - path: "artifacts/vigilant-spirit/public/images/mystic-bg.png"
+    description: "Deep mystic background with sacred geometry, nebula clouds in dark navy, indigo and subtle purple, highly aesthetic, minimalist"
+    aspect_ratio: "16:9"
+
+notes:
+  - "App uses localStorage for entry storage so no DB schema is strictly needed for entries"
+  - "Using generated hooks from @workspace/api-client-react for /api/classify and /api/health"

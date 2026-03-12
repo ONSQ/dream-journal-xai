@@ -1,0 +1,30 @@
+#!/bin/bash
+echo "Starting Vigilant Spirit Dream Journal..."
+
+# Install frontend dependencies if needed
+if [ ! -d "frontend/node_modules" ]; then
+  echo "Installing frontend dependencies..."
+  cd frontend && npm install && cd ..
+fi
+
+# Install backend dependencies if needed
+pip install flask flask-cors scikit-learn pandas numpy shap lime --quiet 2>/dev/null
+
+# Start backend
+echo "Starting Python API server on port 5000..."
+python backend/main.py &
+BACKEND_PID=$!
+
+# Wait for backend to start
+sleep 3
+
+# Start frontend
+echo "Starting Vite dev server on port 5173..."
+cd frontend && npm run dev &
+FRONTEND_PID=$!
+
+# Handle shutdown
+trap "kill $BACKEND_PID $FRONTEND_PID 2>/dev/null" EXIT
+
+# Keep running
+wait
