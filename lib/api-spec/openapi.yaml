@@ -19,7 +19,6 @@ paths:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -32,7 +31,6 @@ paths:
       operationId: modelHealth
       tags: [health]
       summary: Model health check
-      description: Returns XAI model status
       responses:
         "200":
           description: Model status
@@ -45,7 +43,7 @@ paths:
       operationId: classifyDream
       tags: [classify]
       summary: Classify a dream
-      description: Classifies dream text into Spiritual, Trauma, and Maintenance dimensions
+      description: Classifies dream text into Spiritual, Trauma, and Maintenance dimensions with SHAP, LIME, confidence intervals, and counterfactual explanations
       requestBody:
         required: true
         content:
@@ -70,7 +68,6 @@ paths:
       operationId: listEntries
       tags: [entries]
       summary: List all journal entries
-      description: Returns all journal entries for the user
       responses:
         "200":
           description: List of entries
@@ -89,7 +86,6 @@ paths:
       operationId: upsertEntry
       tags: [entries]
       summary: Create or update a journal entry
-      description: Creates or updates a journal entry (upserts by clientId)
       requestBody:
         required: true
         content:
@@ -108,7 +104,6 @@ paths:
       operationId: deleteEntry
       tags: [entries]
       summary: Delete a journal entry
-      description: Deletes a journal entry by client ID
       parameters:
         - name: clientId
           in: path
@@ -140,8 +135,7 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
     ModelHealthStatus:
       type: object
       properties:
@@ -155,20 +149,43 @@ components:
           type: boolean
         features:
           type: integer
-      required:
-        - status
-        - model_loaded
-        - shap_available
-        - lime_available
-        - features
+      required: [status, model_loaded, shap_available, lime_available, features]
+    DreamFields:
+      type: object
+      description: Individual dream entry fields for per-field weighted classification
+      properties:
+        narrative:
+          type: string
+        title:
+          type: string
+        theme:
+          type: string
+        affect:
+          type: string
+        interpretation:
+          type: string
+        coreThreat:
+          type: string
+        masteryAction:
+          type: string
+        safeEnding:
+          type: string
+        question:
+          type: string
+        incubationRequest:
+          type: string
+        concerns:
+          type: string
     ClassifyRequest:
       type: object
       properties:
         text:
           type: string
-          minLength: 1
-      required:
-        - text
+          description: Plain concatenated text (used when fields not provided)
+        fields:
+          $ref: "#/components/schemas/DreamFields"
+          description: Individual entry fields for per-field weighted classification (preferred)
+      description: Either text or fields must be provided
     FeatureWeight:
       type: object
       properties:
@@ -176,9 +193,7 @@ components:
           type: string
         weight:
           type: number
-      required:
-        - word
-        - weight
+      required: [word, weight]
     DimensionFeatures:
       type: object
       properties:
@@ -194,10 +209,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/FeatureWeight"
-      required:
-        - Spiritual
-        - Trauma
-        - Maintenance
+      required: [Spiritual, Trauma, Maintenance]
     DimensionProbabilities:
       type: object
       properties:
@@ -207,10 +219,7 @@ components:
           type: number
         Maintenance:
           type: number
-      required:
-        - Spiritual
-        - Trauma
-        - Maintenance
+      required: [Spiritual, Trauma, Maintenance]
     DimensionAgreement:
       type: object
       properties:
@@ -220,10 +229,7 @@ components:
           type: number
         Maintenance:
           type: number
-      required:
-        - Spiritual
-        - Trauma
-        - Maintenance
+      required: [Spiritual, Trauma, Maintenance]
     DimensionInterpretations:
       type: object
       properties:
@@ -233,10 +239,62 @@ components:
           type: string
         Maintenance:
           type: string
-      required:
-        - Spiritual
-        - Trauma
-        - Maintenance
+      required: [Spiritual, Trauma, Maintenance]
+    ConfidenceInterval:
+      type: object
+      description: Lower and upper bounds for a probability estimate
+      properties:
+        lower:
+          type: number
+        upper:
+          type: number
+        adequate:
+          type: boolean
+          description: Whether word count is sufficient for reliable classification
+      required: [lower, upper, adequate]
+    DimensionConfidenceIntervals:
+      type: object
+      properties:
+        Spiritual:
+          $ref: "#/components/schemas/ConfidenceInterval"
+        Trauma:
+          $ref: "#/components/schemas/ConfidenceInterval"
+        Maintenance:
+          $ref: "#/components/schemas/ConfidenceInterval"
+      required: [Spiritual, Trauma, Maintenance]
+    Counterfactual:
+      type: object
+      description: What the probability would be if a keyword were removed
+      properties:
+        remove:
+          type: string
+          description: The word whose removal is being simulated
+        newProbability:
+          type: number
+          description: The probability if this word were removed
+        delta:
+          type: number
+          description: Change in probability (negative means removing this word hurts the score)
+        explanation:
+          type: string
+          description: Human-readable explanation of the counterfactual
+      required: [remove, newProbability, delta, explanation]
+    DimensionCounterfactuals:
+      type: object
+      properties:
+        Spiritual:
+          type: array
+          items:
+            $ref: "#/components/schemas/Counterfactual"
+        Trauma:
+          type: array
+          items:
+            $ref: "#/components/schemas/Counterfactual"
+        Maintenance:
+          type: array
+          items:
+            $ref: "#/components/schemas/Counterfactual"
+      required: [Spiritual, Trauma, Maintenance]
     SourceInfo:
       type: object
       properties:
@@ -248,11 +306,7 @@ components:
           type: string
         guidance:
           type: string
-      required:
-        - title
-        - icon
-        - color
-        - guidance
+      required: [title, icon, color, guidance]
     ClassifyResponse:
       type: object
       properties:
@@ -266,6 +320,10 @@ components:
           $ref: "#/components/schemas/DimensionFeatures"
         agreement:
           $ref: "#/components/schemas/DimensionAgreement"
+        confidenceIntervals:
+          $ref: "#/components/schemas/DimensionConfidenceIntervals"
+        counterfactuals:
+          $ref: "#/components/schemas/DimensionCounterfactuals"
         sourceType:
           type: string
         sourceInfo:
@@ -276,17 +334,27 @@ components:
           $ref: "#/components/schemas/DimensionInterpretations"
         wordCount:
           type: integer
+        negationsDetected:
+          type: integer
+          description: Number of keywords neutralized due to negation context
+        fieldWeighting:
+          type: boolean
+          description: Whether per-field weighting was applied
       required:
         - success
         - probabilities
         - shap
         - lime
         - agreement
+        - confidenceIntervals
+        - counterfactuals
         - sourceType
         - sourceInfo
         - interpretation
         - dimensionInterpretations
         - wordCount
+        - negationsDetected
+        - fieldWeighting
     ErrorResponse:
       type: object
       properties:
@@ -294,15 +362,12 @@ components:
           type: boolean
         error:
           type: string
-      required:
-        - success
-        - error
+      required: [success, error]
     JournalEntry:
       type: object
       properties:
         clientId:
           type: string
-          description: Client-side generated ID (Date.now() as string)
         mode:
           type: string
           enum: [vigilant, restored]
@@ -310,24 +375,13 @@ components:
           type: string
         entryDate:
           type: string
-          description: ISO date string
         data:
           type: object
-          description: Arbitrary entry fields (title, narrative, etc.)
         createdAt:
           type: string
-          description: ISO timestamp
         updatedAt:
           type: string
-          description: ISO timestamp
-      required:
-        - clientId
-        - mode
-        - phase
-        - entryDate
-        - data
-        - createdAt
-        - updatedAt
+      required: [clientId, mode, phase, entryDate, data, createdAt, updatedAt]
     UpsertEntryRequest:
       type: object
       properties:
@@ -342,9 +396,4 @@ components:
           type: string
         data:
           type: object
-      required:
-        - clientId
-        - mode
-        - phase
-        - entryDate
-        - data
+      required: [clientId, mode, phase, entryDate, data]

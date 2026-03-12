@@ -72,6 +72,23 @@ function collectAllEntryText(data: Record<string, any>): string {
   return fields.filter(Boolean).join(' ');
 }
 
+function collectEntryFields(data: Record<string, any>): Record<string, string> {
+  const mapping: Record<string, string> = {
+    narrative: data.narrative,
+    title: data.title,
+    theme: data.theme,
+    affect: data.affect,
+    interpretation: data.interpretation,
+    coreThreat: data.coreThreat,
+    masteryAction: data.masteryAction,
+    safeEnding: data.safeEnding,
+    question: data.question,
+    incubationRequest: data.incubationRequest,
+    concerns: data.concerns,
+  };
+  return Object.fromEntries(Object.entries(mapping).filter(([, v]) => v && typeof v === 'string' && v.trim().length > 0));
+}
+
 function formatEntryForExport(entry: JournalEntry): string {
   const d = entry.data;
   const date = new Date(entry.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -156,7 +173,7 @@ function ClearboxAnalysis({ classification, entryData, isLoading, error, onRecla
       <div className="flex flex-col items-center justify-center py-16 animate-in fade-in zoom-in duration-500">
         <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
         <p className="text-slate-300 font-medium">Analyzing dream dimensions...</p>
-        <p className="text-slate-500 text-sm mt-2">Running XAI classification</p>
+        <p className="text-slate-500 text-sm mt-2">Running XAI classification with field weighting</p>
       </div>
     );
   }
@@ -184,7 +201,13 @@ function ClearboxAnalysis({ classification, entryData, isLoading, error, onRecla
   if (!classification) return null;
   
   const sourceInfo = classification.sourceInfo || SOURCE_INTERPRETATIONS[classification.sourceType] || SOURCE_INTERPRETATIONS.mixed_all;
-  
+  const wc = classification.wordCount ?? 0;
+  const lowConfidence = wc < 30;
+  const negations = (classification as any).negationsDetected ?? 0;
+  const fieldWeighted = (classification as any).fieldWeighting ?? false;
+  const cis = (classification as any).confidenceIntervals as Record<string, { lower: number; upper: number; adequate: boolean }> | undefined;
+  const counterfactuals = (classification as any).counterfactuals as Record<string, Array<{ remove: string; newProbability: number; delta: number; explanation: string }>> | undefined;
+
   const dimensions = [
     { key: 'Spiritual', color: 'indigo', gradient: 'from-indigo-600 to-primary' },
     { key: 'Trauma', color: 'red', gradient: 'from-destructive to-orange-500' },
@@ -193,12 +216,40 @@ function ClearboxAnalysis({ classification, entryData, isLoading, error, onRecla
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+
+      {/* Low-confidence warning */}
+      {lowConfidence && (
+        <div className="bg-amber-950/40 border border-amber-500/30 rounded-xl px-4 py-3 flex items-start gap-3 shadow-md">
+          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-amber-200 text-sm font-medium">Low word count — confidence is limited</p>
+            <p className="text-amber-400/70 text-xs mt-0.5">
+              Only {wc} words analyzed. Add more narrative detail (30+ words) to narrow the confidence intervals.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* XAI status banner */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl px-4 py-3 flex items-center gap-3 shadow-lg shadow-emerald-900/20 flex-1 min-w-0">
           <Zap className="w-5 h-5 text-emerald-400 shrink-0" />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-emerald-200 text-sm font-medium">XAI Classification Complete</p>
-            <p className="text-emerald-400/70 text-xs">Powered by SHAP + LIME explainability</p>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <span className="text-emerald-400/70 text-xs">SHAP + true LIME</span>
+              {fieldWeighted && (
+                <span className="bg-indigo-900/50 border border-indigo-500/30 text-indigo-300 text-[10px] font-medium px-1.5 py-0.5 rounded-full">
+                  Field-weighted
+                </span>
+              )}
+              {negations > 0 && (
+                <span className="bg-orange-900/50 border border-orange-500/30 text-orange-300 text-[10px] font-medium px-1.5 py-0.5 rounded-full">
+                  {negations} negation{negations > 1 ? 's' : ''} neutralized
+                </span>
+              )}
+              <span className="text-slate-600 text-[10px]">{wc} words</span>
+            </div>
           </div>
         </div>
         <div className="flex gap-2 shrink-0">
@@ -221,6 +272,7 @@ function ClearboxAnalysis({ classification, entryData, isLoading, error, onRecla
         </div>
       </div>
 
+      {/* Source card */}
       <div className={`bg-slate-800/40 border border-white/10 rounded-2xl p-6 shadow-xl`}>
         <div className="flex items-start gap-4">
           <div className="text-4xl drop-shadow-md">{sourceInfo.icon}</div>
@@ -231,19 +283,26 @@ function ClearboxAnalysis({ classification, entryData, isLoading, error, onRecla
         </div>
       </div>
 
+      {/* Dimensional breakdown with CIs and counterfactuals */}
       <div className="bg-slate-900/60 backdrop-blur border border-white/5 rounded-2xl p-6 shadow-xl">
-        <h4 className="font-display text-lg mb-5 flex items-center gap-2 text-white">
+        <h4 className="font-display text-lg mb-1 flex items-center gap-2 text-white">
           <Eye className="w-5 h-5 text-primary" />
           Dimensional Breakdown
         </h4>
+        <p className="text-slate-500 text-xs mb-5">Tap a dimension to see XAI evidence, LIME deltas, and counterfactuals</p>
         <div className="space-y-5">
           {dimensions.map(dim => {
             const probKey = dim.key as keyof typeof classification.probabilities;
             const prob = classification.probabilities[probKey] || 0;
             const isExpanded = expandedDim === dim.key;
+            const ci = cis?.[dim.key];
+            const cfs = counterfactuals?.[dim.key] ?? [];
+            const shapFeats = classification.shap[probKey] ?? [];
+            const limeFeats = classification.lime[probKey] ?? [];
+            const agr = classification.agreement[probKey as keyof typeof classification.agreement] ?? 0;
             
             return (
-              <div key={dim.key} className="space-y-2">
+              <div key={dim.key} className="space-y-1.5">
                 <button 
                   onClick={() => setExpandedDim(isExpanded ? null : dim.key)} 
                   className="w-full group min-h-[44px]"
@@ -254,13 +313,29 @@ function ClearboxAnalysis({ classification, entryData, isLoading, error, onRecla
                       {prob > 0.5 && <Check className="w-4 h-4 text-emerald-400" />}
                       <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
                     </span>
-                    <span className={`font-mono font-medium ${prob > 0.5 ? 'text-white' : 'text-slate-500'}`}>
-                      {(prob * 100).toFixed(1)}%
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {ci && (
+                        <span className="font-mono text-[10px] text-slate-500">
+                          [{(ci.lower * 100).toFixed(0)}–{(ci.upper * 100).toFixed(0)}%]
+                        </span>
+                      )}
+                      <span className={`font-mono font-semibold ${prob > 0.5 ? 'text-white' : 'text-slate-500'}`}>
+                        {(prob * 100).toFixed(1)}%
+                      </span>
+                    </div>
                   </div>
-                  <div className="h-2.5 bg-slate-800 rounded-full overflow-hidden shadow-inner">
+                  {/* Bar with confidence interval band */}
+                  <div className="relative h-3 bg-slate-800 rounded-full shadow-inner overflow-visible">
+                    {/* CI band (shown behind bar) */}
+                    {ci && (
+                      <div
+                        className="absolute top-0 h-full rounded-full bg-white/10"
+                        style={{ left: `${ci.lower * 100}%`, width: `${Math.max(0, (ci.upper - ci.lower)) * 100}%` }}
+                      />
+                    )}
+                    {/* Main bar */}
                     <div 
-                      className={`h-full rounded-full bg-gradient-to-r ${dim.gradient} transition-all duration-1000 ease-out`}
+                      className={`absolute top-0 left-0 h-full rounded-full bg-gradient-to-r ${dim.gradient} transition-all duration-1000 ease-out`}
                       style={{ width: `${prob * 100}%` }}
                     />
                   </div>
@@ -274,46 +349,85 @@ function ClearboxAnalysis({ classification, entryData, isLoading, error, onRecla
                       exit={{ opacity: 0, height: 0 }}
                       className="overflow-hidden"
                     >
-                      <div className="mt-3 p-5 bg-slate-800/50 rounded-xl border border-white/5 space-y-5">
+                      <div className="mt-2 p-5 bg-slate-800/50 rounded-xl border border-white/5 space-y-5">
+
+                        {/* Dimension narrative */}
                         {classification.dimensionInterpretations && (
                           <p className="text-sm text-slate-300 leading-relaxed">
                             {classification.dimensionInterpretations[dim.key as keyof typeof classification.dimensionInterpretations]}
                           </p>
                         )}
+
+                        {/* Confidence interval explainer */}
+                        {ci && (
+                          <div className="bg-slate-900/60 rounded-lg p-3 border border-white/5">
+                            <p className="text-xs font-semibold text-slate-400 mb-1">Confidence Interval</p>
+                            <p className="text-xs text-slate-400 leading-relaxed">
+                              Based on {wc} words, the true {dim.key} probability lies between{' '}
+                              <span className="text-white font-medium">{(ci.lower * 100).toFixed(0)}%</span> and{' '}
+                              <span className="text-white font-medium">{(ci.upper * 100).toFixed(0)}%</span>.{' '}
+                              {ci.adequate
+                                ? 'Word count is sufficient for reliable classification.'
+                                : 'Add more detail to narrow this range.'}
+                            </p>
+                          </div>
+                        )}
                         
+                        {/* SHAP + LIME side by side */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <h5 className="text-xs font-semibold text-emerald-400 mb-2 flex items-center gap-1">
-                              <Zap className="w-3 h-3" /> SHAP Features
+                            <h5 className="text-xs font-semibold text-emerald-400 mb-2 flex items-center gap-1.5">
+                              <Zap className="w-3 h-3" /> SHAP — Feature Weights
                             </h5>
-                            <div className="flex flex-wrap gap-2">
-                              {classification.shap[probKey]?.map((f, i) => (
+                            <div className="flex flex-wrap gap-1.5">
+                              {shapFeats.map((f, i) => (
                                 <span key={i} className="px-2 py-1 bg-emerald-950/40 border border-emerald-500/30 rounded-md text-xs text-emerald-100">
-                                  "{f.word}" <span className="opacity-60">{f.weight > 0 ? '+' : ''}{f.weight.toFixed(2)}</span>
+                                  "{f.word}" <span className="opacity-60">+{f.weight.toFixed(2)}</span>
                                 </span>
                               ))}
-                              {(!classification.shap[probKey] || classification.shap[probKey].length === 0) && (
+                              {shapFeats.length === 0 && (
                                 <span className="text-xs text-slate-500">None detected</span>
                               )}
                             </div>
                           </div>
                           
                           <div>
-                            <h5 className="text-xs font-semibold text-amber-400 mb-2 flex items-center gap-1">
-                              <Brain className="w-3 h-3" /> LIME Features
+                            <h5 className="text-xs font-semibold text-amber-400 mb-2 flex items-center gap-1.5">
+                              <Brain className="w-3 h-3" /> LIME — Leave-One-Out Δ
                             </h5>
-                            <div className="flex flex-wrap gap-2">
-                              {classification.lime[probKey]?.map((f, i) => (
-                                <span key={i} className="px-2 py-1 bg-amber-950/40 border border-amber-500/30 rounded-md text-xs text-amber-100">
-                                  "{f.word}" <span className="opacity-60">{f.weight > 0 ? '+' : ''}{f.weight.toFixed(2)}</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {limeFeats.map((f, i) => (
+                                <span key={i} className={`px-2 py-1 rounded-md text-xs border ${f.weight >= 0 ? 'bg-amber-950/40 border-amber-500/30 text-amber-100' : 'bg-slate-900/60 border-slate-600/30 text-slate-400'}`}>
+                                  "{f.word}" <span className="opacity-70">{f.weight >= 0 ? '+' : ''}{f.weight.toFixed(3)}</span>
                                 </span>
                               ))}
-                              {(!classification.lime[probKey] || classification.lime[probKey].length === 0) && (
+                              {limeFeats.length === 0 && (
                                 <span className="text-xs text-slate-500">None detected</span>
                               )}
                             </div>
+                            {shapFeats.length > 0 && limeFeats.length > 0 && (
+                              <p className="text-[10px] text-slate-600 mt-1.5">
+                                SHAP/LIME agreement: {(agr * 100).toFixed(0)}%
+                              </p>
+                            )}
                           </div>
                         </div>
+
+                        {/* Counterfactuals */}
+                        {cfs.length > 0 && (
+                          <div>
+                            <h5 className="text-xs font-semibold text-blue-400 mb-2 flex items-center gap-1.5">
+                              <RefreshCw className="w-3 h-3" /> Counterfactuals — "What if?"
+                            </h5>
+                            <div className="space-y-2">
+                              {cfs.map((cf, i) => (
+                                <div key={i} className="bg-blue-950/20 border border-blue-500/20 rounded-lg px-3 py-2.5">
+                                  <p className="text-xs text-blue-100 leading-relaxed">{cf.explanation}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </motion.div>
                   )}
@@ -324,6 +438,7 @@ function ClearboxAnalysis({ classification, entryData, isLoading, error, onRecla
         </div>
       </div>
 
+      {/* Synthesis interpretation */}
       <div className="bg-gradient-to-br from-indigo-900/20 to-purple-900/20 rounded-2xl p-6 border border-white/10 shadow-xl">
         <h4 className="font-display text-lg mb-3 flex items-center gap-2 text-white">
           <Sparkles className="w-5 h-5 text-amber-400" />
@@ -615,9 +730,10 @@ function VigilantEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
   const currentPhaseIndex = phases.findIndex(p => p.id === entry.phase);
 
   const runClassify = useCallback(() => {
-    const text = collectAllEntryText(formData);
-    if (text.length > 10) {
-      classifyMutation.mutate({ data: { text } }, {
+    const fields = collectEntryFields(formData);
+    const hasContent = Object.values(fields).some(v => v && v.length > 5);
+    if (hasContent) {
+      classifyMutation.mutate({ data: { fields } }, {
         onSuccess: (data) => {
           setClassification(data);
           const updated = { ...formData, _classification: data };
@@ -948,9 +1064,10 @@ function RestoredEntry({ entry, onSave, onBack, onNextPhase }: { entry: JournalE
   }, [breathingActive, breathPhase]);
 
   const runClassify = useCallback(() => {
-    const text = collectAllEntryText(formData);
-    if (text.length > 10) {
-      classifyMutation.mutate({ data: { text } }, {
+    const fields = collectEntryFields(formData);
+    const hasContent = Object.values(fields).some(v => v && v.length > 5);
+    if (hasContent) {
+      classifyMutation.mutate({ data: { fields } }, {
         onSuccess: (data) => {
           setClassification(data);
           const updated = { ...formData, _classification: data };

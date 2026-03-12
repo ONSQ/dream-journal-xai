@@ -17,9 +17,31 @@ export interface ModelHealthStatus {
   features: number;
 }
 
+/**
+ * Individual dream entry fields for per-field weighted classification
+ */
+export interface DreamFields {
+  narrative?: string;
+  title?: string;
+  theme?: string;
+  affect?: string;
+  interpretation?: string;
+  coreThreat?: string;
+  masteryAction?: string;
+  safeEnding?: string;
+  question?: string;
+  incubationRequest?: string;
+  concerns?: string;
+}
+
+/**
+ * Either text or fields must be provided
+ */
 export interface ClassifyRequest {
-  /** @minLength 1 */
-  text: string;
+  /** Plain concatenated text (used when fields not provided) */
+  text?: string;
+  /** Individual entry fields for per-field weighted classification (preferred) */
+  fields?: DreamFields;
 }
 
 export interface FeatureWeight {
@@ -51,6 +73,42 @@ export interface DimensionInterpretations {
   Maintenance: string;
 }
 
+/**
+ * Lower and upper bounds for a probability estimate
+ */
+export interface ConfidenceInterval {
+  lower: number;
+  upper: number;
+  /** Whether word count is sufficient for reliable classification */
+  adequate: boolean;
+}
+
+export interface DimensionConfidenceIntervals {
+  Spiritual: ConfidenceInterval;
+  Trauma: ConfidenceInterval;
+  Maintenance: ConfidenceInterval;
+}
+
+/**
+ * What the probability would be if a keyword were removed
+ */
+export interface Counterfactual {
+  /** The word whose removal is being simulated */
+  remove: string;
+  /** The probability if this word were removed */
+  newProbability: number;
+  /** Change in probability (negative means removing this word hurts the score) */
+  delta: number;
+  /** Human-readable explanation of the counterfactual */
+  explanation: string;
+}
+
+export interface DimensionCounterfactuals {
+  Spiritual: Counterfactual[];
+  Trauma: Counterfactual[];
+  Maintenance: Counterfactual[];
+}
+
 export interface SourceInfo {
   title: string;
   icon: string;
@@ -64,11 +122,17 @@ export interface ClassifyResponse {
   shap: DimensionFeatures;
   lime: DimensionFeatures;
   agreement: DimensionAgreement;
+  confidenceIntervals: DimensionConfidenceIntervals;
+  counterfactuals: DimensionCounterfactuals;
   sourceType: string;
   sourceInfo: SourceInfo;
   interpretation: string;
   dimensionInterpretations: DimensionInterpretations;
   wordCount: number;
+  /** Number of keywords neutralized due to negation context */
+  negationsDetected: number;
+  /** Whether per-field weighting was applied */
+  fieldWeighting: boolean;
 }
 
 export interface ErrorResponse {
@@ -84,23 +148,15 @@ export const JournalEntryMode = {
   restored: "restored",
 } as const;
 
-/**
- * Arbitrary entry fields (title, narrative, etc.)
- */
 export type JournalEntryData = { [key: string]: unknown };
 
 export interface JournalEntry {
-  /** Client-side generated ID (Date.now() as string) */
   clientId: string;
   mode: JournalEntryMode;
   phase: string;
-  /** ISO date string */
   entryDate: string;
-  /** Arbitrary entry fields (title, narrative, etc.) */
   data: JournalEntryData;
-  /** ISO timestamp */
   createdAt: string;
-  /** ISO timestamp */
   updatedAt: string;
 }
 

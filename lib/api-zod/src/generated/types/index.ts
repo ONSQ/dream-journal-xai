@@ -8,11 +8,16 @@
 
 export * from "./classifyRequest";
 export * from "./classifyResponse";
+export * from "./confidenceInterval";
+export * from "./counterfactual";
 export * from "./deleteEntry200";
 export * from "./dimensionAgreement";
+export * from "./dimensionConfidenceIntervals";
+export * from "./dimensionCounterfactuals";
 export * from "./dimensionFeatures";
 export * from "./dimensionInterpretations";
 export * from "./dimensionProbabilities";
+export * from "./dreamFields";
 export * from "./errorResponse";
 export * from "./featureWeight";
 export * from "./healthStatus";

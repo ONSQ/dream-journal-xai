@@ -8,7 +8,6 @@
 import * as zod from "zod";
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
@@ -16,7 +15,6 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
- * Returns XAI model status
  * @summary Model health check
  */
 export const ModelHealthResponse = zod.object({
@@ -28,13 +26,35 @@ export const ModelHealthResponse = zod.object({
 });
 
 /**
- * Classifies dream text into Spiritual, Trauma, and Maintenance dimensions
+ * Classifies dream text into Spiritual, Trauma, and Maintenance dimensions with SHAP, LIME, confidence intervals, and counterfactual explanations
  * @summary Classify a dream
  */
-
-export const ClassifyDreamBody = zod.object({
-  text: zod.string().min(1),
-});
+export const ClassifyDreamBody = zod
+  .object({
+    text: zod
+      .string()
+      .optional()
+      .describe("Plain concatenated text (used when fields not provided)"),
+    fields: zod
+      .object({
+        narrative: zod.string().optional(),
+        title: zod.string().optional(),
+        theme: zod.string().optional(),
+        affect: zod.string().optional(),
+        interpretation: zod.string().optional(),
+        coreThreat: zod.string().optional(),
+        masteryAction: zod.string().optional(),
+        safeEnding: zod.string().optional(),
+        question: zod.string().optional(),
+        incubationRequest: zod.string().optional(),
+        concerns: zod.string().optional(),
+      })
+      .optional()
+      .describe(
+        "Individual entry fields for per-field weighted classification (preferred)",
+      ),
+  })
+  .describe("Either text or fields must be provided");
 
 export const ClassifyDreamResponse = zod.object({
   success: zod.boolean(),
@@ -88,6 +108,103 @@ export const ClassifyDreamResponse = zod.object({
     Trauma: zod.number(),
     Maintenance: zod.number(),
   }),
+  confidenceIntervals: zod.object({
+    Spiritual: zod
+      .object({
+        lower: zod.number(),
+        upper: zod.number(),
+        adequate: zod
+          .boolean()
+          .describe(
+            "Whether word count is sufficient for reliable classification",
+          ),
+      })
+      .describe("Lower and upper bounds for a probability estimate"),
+    Trauma: zod
+      .object({
+        lower: zod.number(),
+        upper: zod.number(),
+        adequate: zod
+          .boolean()
+          .describe(
+            "Whether word count is sufficient for reliable classification",
+          ),
+      })
+      .describe("Lower and upper bounds for a probability estimate"),
+    Maintenance: zod
+      .object({
+        lower: zod.number(),
+        upper: zod.number(),
+        adequate: zod
+          .boolean()
+          .describe(
+            "Whether word count is sufficient for reliable classification",
+          ),
+      })
+      .describe("Lower and upper bounds for a probability estimate"),
+  }),
+  counterfactuals: zod.object({
+    Spiritual: zod.array(
+      zod
+        .object({
+          remove: zod
+            .string()
+            .describe("The word whose removal is being simulated"),
+          newProbability: zod
+            .number()
+            .describe("The probability if this word were removed"),
+          delta: zod
+            .number()
+            .describe(
+              "Change in probability (negative means removing this word hurts the score)",
+            ),
+          explanation: zod
+            .string()
+            .describe("Human-readable explanation of the counterfactual"),
+        })
+        .describe("What the probability would be if a keyword were removed"),
+    ),
+    Trauma: zod.array(
+      zod
+        .object({
+          remove: zod
+            .string()
+            .describe("The word whose removal is being simulated"),
+          newProbability: zod
+            .number()
+            .describe("The probability if this word were removed"),
+          delta: zod
+            .number()
+            .describe(
+              "Change in probability (negative means removing this word hurts the score)",
+            ),
+          explanation: zod
+            .string()
+            .describe("Human-readable explanation of the counterfactual"),
+        })
+        .describe("What the probability would be if a keyword were removed"),
+    ),
+    Maintenance: zod.array(
+      zod
+        .object({
+          remove: zod
+            .string()
+            .describe("The word whose removal is being simulated"),
+          newProbability: zod
+            .number()
+            .describe("The probability if this word were removed"),
+          delta: zod
+            .number()
+            .describe(
+              "Change in probability (negative means removing this word hurts the score)",
+            ),
+          explanation: zod
+            .string()
+            .describe("Human-readable explanation of the counterfactual"),
+        })
+        .describe("What the probability would be if a keyword were removed"),
+    ),
+  }),
   sourceType: zod.string(),
   sourceInfo: zod.object({
     title: zod.string(),
@@ -102,33 +219,32 @@ export const ClassifyDreamResponse = zod.object({
     Maintenance: zod.string(),
   }),
   wordCount: zod.number(),
+  negationsDetected: zod
+    .number()
+    .describe("Number of keywords neutralized due to negation context"),
+  fieldWeighting: zod
+    .boolean()
+    .describe("Whether per-field weighting was applied"),
 });
 
 /**
- * Returns all journal entries for the user
  * @summary List all journal entries
  */
 export const ListEntriesResponse = zod.object({
   entries: zod.array(
     zod.object({
-      clientId: zod
-        .string()
-        .describe("Client-side generated ID (Date.now() as string)"),
+      clientId: zod.string(),
       mode: zod.enum(["vigilant", "restored"]),
       phase: zod.string(),
-      entryDate: zod.string().describe("ISO date string"),
-      data: zod
-        .object({})
-        .passthrough()
-        .describe("Arbitrary entry fields (title, narrative, etc.)"),
-      createdAt: zod.string().describe("ISO timestamp"),
-      updatedAt: zod.string().describe("ISO timestamp"),
+      entryDate: zod.string(),
+      data: zod.object({}).passthrough(),
+      createdAt: zod.string(),
+      updatedAt: zod.string(),
     }),
   ),
 });
 
 /**
- * Creates or updates a journal entry (upserts by clientId)
  * @summary Create or update a journal entry
  */
 export const UpsertEntryBody = zod.object({
@@ -140,22 +256,16 @@ export const UpsertEntryBody = zod.object({
 });
 
 export const UpsertEntryResponse = zod.object({
-  clientId: zod
-    .string()
-    .describe("Client-side generated ID (Date.now() as string)"),
+  clientId: zod.string(),
   mode: zod.enum(["vigilant", "restored"]),
   phase: zod.string(),
-  entryDate: zod.string().describe("ISO date string"),
-  data: zod
-    .object({})
-    .passthrough()
-    .describe("Arbitrary entry fields (title, narrative, etc.)"),
-  createdAt: zod.string().describe("ISO timestamp"),
-  updatedAt: zod.string().describe("ISO timestamp"),
+  entryDate: zod.string(),
+  data: zod.object({}).passthrough(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
 });
 
 /**
- * Deletes a journal entry by client ID
  * @summary Delete a journal entry
  */
 export const DeleteEntryParams = zod.object({

@@ -9,16 +9,11 @@ import type { JournalEntryData } from "./journalEntryData";
 import type { JournalEntryMode } from "./journalEntryMode";
 
 export interface JournalEntry {
-  /** Client-side generated ID (Date.now() as string) */
   clientId: string;
   mode: JournalEntryMode;
   phase: string;
-  /** ISO date string */
   entryDate: string;
-  /** Arbitrary entry fields (title, narrative, etc.) */
   data: JournalEntryData;
-  /** ISO timestamp */
   createdAt: string;
-  /** ISO timestamp */
   updatedAt: string;
 }

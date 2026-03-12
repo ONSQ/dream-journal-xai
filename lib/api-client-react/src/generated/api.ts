@@ -38,7 +38,6 @@ type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const getHealthCheckUrl = () => {
@@ -114,7 +113,6 @@ export function useHealthCheck<
 }
 
 /**
- * Returns XAI model status
  * @summary Model health check
  */
 export const getModelHealthUrl = () => {
@@ -190,7 +188,7 @@ export function useModelHealth<
 }
 
 /**
- * Classifies dream text into Spiritual, Trauma, and Maintenance dimensions
+ * Classifies dream text into Spiritual, Trauma, and Maintenance dimensions with SHAP, LIME, confidence intervals, and counterfactual explanations
  * @summary Classify a dream
  */
 export const getClassifyDreamUrl = () => {
@@ -277,7 +275,6 @@ export const useClassifyDream = <
 };
 
 /**
- * Returns all journal entries for the user
  * @summary List all journal entries
  */
 export const getListEntriesUrl = () => {
@@ -353,7 +350,6 @@ export function useListEntries<
 }
 
 /**
- * Creates or updates a journal entry (upserts by clientId)
  * @summary Create or update a journal entry
  */
 export const getUpsertEntryUrl = () => {
@@ -440,7 +436,6 @@ export const useUpsertEntry = <
 };
 
 /**
- * Deletes a journal entry by client ID
  * @summary Delete a journal entry
  */
 export const getDeleteEntryUrl = (clientId: string) => {

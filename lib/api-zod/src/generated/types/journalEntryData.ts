@@ -6,7 +6,4 @@
  * OpenAPI spec version: 0.1.0
  */
 
-/**
- * Arbitrary entry fields (title, narrative, etc.)
- */
 export type JournalEntryData = { [key: string]: unknown };

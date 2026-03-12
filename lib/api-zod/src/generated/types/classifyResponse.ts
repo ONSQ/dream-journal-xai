@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DimensionAgreement } from "./dimensionAgreement";
+import type { DimensionConfidenceIntervals } from "./dimensionConfidenceIntervals";
+import type { DimensionCounterfactuals } from "./dimensionCounterfactuals";
 import type { DimensionFeatures } from "./dimensionFeatures";
 import type { DimensionInterpretations } from "./dimensionInterpretations";
 import type { DimensionProbabilities } from "./dimensionProbabilities";
@@ -17,9 +19,15 @@ export interface ClassifyResponse {
   shap: DimensionFeatures;
   lime: DimensionFeatures;
   agreement: DimensionAgreement;
+  confidenceIntervals: DimensionConfidenceIntervals;
+  counterfactuals: DimensionCounterfactuals;
   sourceType: string;
   sourceInfo: SourceInfo;
   interpretation: string;
   dimensionInterpretations: DimensionInterpretations;
   wordCount: number;
+  /** Number of keywords neutralized due to negation context */
+  negationsDetected: number;
+  /** Whether per-field weighting was applied */
+  fieldWeighting: boolean;
 }

@@ -5,8 +5,14 @@
  * Vigilant Spirit Dream Journal API
  * OpenAPI spec version: 0.1.0
  */
+import type { DreamFields } from "./dreamFields";
 
+/**
+ * Either text or fields must be provided
+ */
 export interface ClassifyRequest {
-  /** @minLength 1 */
-  text: string;
+  /** Plain concatenated text (used when fields not provided) */
+  text?: string;
+  /** Individual entry fields for per-field weighted classification (preferred) */
+  fields?: DreamFields;
 }
