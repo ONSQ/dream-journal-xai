@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { classifyText } from "../lib/api";
+import { useClassifyDream } from "@workspace/api-client-react";
 import type { XAIResult } from "../lib/types";
 import { XAIDetailPanel } from "./XAIDetailPanel";
 
@@ -9,24 +9,25 @@ interface Props {
 
 export function SingleClassifier({ onResult }: Props) {
   const [text, setText] = useState("");
-  const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<XAIResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const classifyMutation = useClassifyDream();
+
   const handleClassify = useCallback(async () => {
     if (!text.trim()) return;
-    setLoading(true);
     setError(null);
     try {
-      const r = await classifyText(text);
-      setResult(r);
-      onResult?.(r, text);
+      const r = await classifyMutation.mutateAsync({ data: { text } });
+      const xaiResult = r as unknown as XAIResult;
+      setResult(xaiResult);
+      onResult?.(xaiResult, text);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Classification failed");
-    } finally {
-      setLoading(false);
     }
-  }, [text, onResult]);
+  }, [text, onResult, classifyMutation]);
+
+  const loading = classifyMutation.isPending;
 
   return (
     <div className="flex flex-col h-full">

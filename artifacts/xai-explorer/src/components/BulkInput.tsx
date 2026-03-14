@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from "react";
-import { classifyText } from "../lib/api";
+import { classifyDream } from "@workspace/api-client-react";
 import type { BulkItem, XAIResult, Dimension } from "../lib/types";
 import { DIMENSION_COLORS, DIMENSIONS } from "../lib/colors";
 
@@ -49,7 +49,7 @@ export function BulkInput() {
         results[idx] = { ...results[idx], status: "classifying" };
         setItems([...results]);
         try {
-          const r = await classifyText(results[idx].text);
+          const r = await classifyDream({ text: results[idx].text }) as unknown as XAIResult;
           results[idx] = { ...results[idx], status: "done", result: r };
         } catch (err) {
           results[idx] = {

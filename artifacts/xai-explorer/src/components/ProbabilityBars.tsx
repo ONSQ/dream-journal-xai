@@ -1,4 +1,4 @@
-import type { XAIResult, Dimension } from "../lib/types";
+import type { XAIResult } from "../lib/types";
 import { DIMENSION_COLORS, DIMENSIONS } from "../lib/colors";
 
 interface Props {
@@ -22,14 +22,21 @@ export function ProbabilityBars({ result }: Props) {
         return (
           <div key={dim} className="space-y-1">
             <div className="flex items-center justify-between text-sm">
-              <span className={`font-medium ${colors.text}`}>{dim}</span>
+              <span className={`font-medium ${colors.text} flex items-center gap-1.5`}>
+                {dim}
+                {ci.adequate ? (
+                  <span className="text-emerald-400 text-[10px]" title="Word count adequate for reliable classification">✓</span>
+                ) : (
+                  <span className="text-amber-400 text-[10px]" title="Below 30-word threshold — confidence is limited">⚠</span>
+                )}
+              </span>
               <span className="text-muted-foreground font-mono text-xs">
                 {pct}% <span className="opacity-60">({ciLower}–{ciUpper}%)</span>
               </span>
             </div>
             <div className="relative h-6 rounded-md overflow-hidden bg-secondary">
               <div
-                className="absolute inset-y-0 left-0 rounded-md opacity-20"
+                className="absolute inset-y-0 rounded-md opacity-20"
                 style={{
                   left: `${ci.lower * 100}%`,
                   width: `${(ci.upper - ci.lower) * 100}%`,
@@ -52,9 +59,17 @@ export function ProbabilityBars({ result }: Props) {
           </div>
         );
       })}
-      <div className="flex items-center gap-2 pt-1 text-xs text-muted-foreground">
-        <span className="inline-block w-3 h-2 rounded-sm opacity-30 bg-muted-foreground" />
-        <span>Shaded region = 95% confidence interval</span>
+      <div className="flex items-center gap-3 pt-1 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1">
+          <span className="inline-block w-3 h-2 rounded-sm opacity-30 bg-muted-foreground" />
+          Shaded = 95% CI
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="text-emerald-400">✓</span> Adequate (&ge;30 words)
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="text-amber-400">⚠</span> Low confidence
+        </span>
       </div>
     </div>
   );

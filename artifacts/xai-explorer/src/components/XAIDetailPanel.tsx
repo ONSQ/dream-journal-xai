@@ -23,8 +23,7 @@ export function XAIDetailPanel({ result, title, narrative }: Props) {
       )}
 
       <ProbabilityBars result={result} />
-      <FeatureTable title="SHAP Feature Attribution" method="SHAP" features={result.shap} agreement={result.agreement} />
-      <FeatureTable title="LIME Local Explanation" method="LIME" features={result.lime} agreement={result.agreement} />
+      <FeatureTable shapFeatures={result.shap} limeFeatures={result.lime} agreement={result.agreement} />
       <CounterfactualCards counterfactuals={result.counterfactuals} />
       <MetadataPanel result={result} />
     </div>

@@ -1,38 +1,31 @@
-import { useState, useEffect, useCallback } from "react";
-import type { JournalEntry, XAIResult } from "./lib/types";
-import { fetchEntries } from "./lib/api";
+import { useState, useCallback } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useListEntries, useClassifyDream } from "@workspace/api-client-react";
+import type { XAIResult, JournalEntry, Dimension } from "./lib/types";
 import { EntryList } from "./components/EntryList";
 import { XAIDetailPanel } from "./components/XAIDetailPanel";
 import { SingleClassifier } from "./components/SingleClassifier";
 import { BulkInput } from "./components/BulkInput";
 import { ReportExport } from "./components/ReportExport";
 
+const queryClient = new QueryClient();
+
 type Tab = "entries" | "classify" | "bulk";
 
-function App() {
+function AppContent() {
   const [tab, setTab] = useState<Tab>("entries");
-  const [entries, setEntries] = useState<JournalEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [classifyResult, setClassifyResult] = useState<XAIResult | null>(null);
   const [classifyText, setClassifyText] = useState("");
 
-  useEffect(() => {
-    fetchEntries()
-      .then((data) => {
-        setEntries(data);
-        const firstWithClassification = data.find((e) => e.data?._classification);
-        if (firstWithClassification) setSelectedId(firstWithClassification.clientId);
-      })
-      .catch((err) => {
-        setFetchError(err instanceof Error ? err.message : "Failed to load entries");
-      })
-      .finally(() => setLoading(false));
-  }, []);
+  const { data: entriesData, isLoading, error: fetchError } = useListEntries();
+  const entries = (entriesData?.entries ?? []) as JournalEntry[];
 
-  const selectedEntry = entries.find((e) => e.clientId === selectedId);
+  const firstClassified = entries.find((e) => e.data?._classification);
+  const effectiveSelectedId = selectedId ?? firstClassified?.clientId ?? null;
+
+  const selectedEntry = entries.find((e) => e.clientId === effectiveSelectedId);
   const selectedClassification = selectedEntry?.data?._classification as XAIResult | undefined;
 
   const activeResult = tab === "entries" ? selectedClassification ?? null :
@@ -85,12 +78,14 @@ function App() {
                 sidebarOpen ? "w-72 md:w-80" : "w-0"
               } border-r border-border bg-card/30 transition-all duration-200 overflow-hidden shrink-0`}
             >
-              {loading ? (
+              {isLoading ? (
                 <div className="p-4 text-sm text-muted-foreground">Loading entries...</div>
               ) : fetchError ? (
-                <div className="p-4 text-sm text-red-400">{fetchError}</div>
+                <div className="p-4 text-sm text-red-400">
+                  {fetchError instanceof Error ? fetchError.message : "Failed to load entries"}
+                </div>
               ) : (
-                <EntryList entries={entries} selectedId={selectedId} onSelect={handleSelectEntry} />
+                <EntryList entries={entries} selectedId={effectiveSelectedId} onSelect={handleSelectEntry} />
               )}
             </aside>
 
@@ -154,6 +149,14 @@ function TabButton({ active, onClick, label }: { active: boolean; onClick: () =>
     >
       {label}
     </button>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AppContent />
+    </QueryClientProvider>
   );
 }
 
