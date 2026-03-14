@@ -29,13 +29,16 @@ export function CounterfactualCards({ counterfactuals }: Props) {
               <div className="space-y-2">
                 {cfs.map((cf, i) => (
                   <div key={i} className="rounded bg-black/20 p-2">
-                    <div className="flex items-center gap-1 mb-1">
+                    <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                       <span className="text-xs font-mono bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded">
                         −"{cf.remove}"
                       </span>
                       <span className={`text-[10px] font-mono ${cf.delta < 0 ? "text-red-400" : "text-emerald-400"}`}>
                         {cf.delta > 0 ? "+" : ""}
                         {(cf.delta * 100).toFixed(1)}%
+                      </span>
+                      <span className="text-[10px] font-mono text-muted-foreground">
+                        → {(cf.newProbability * 100).toFixed(1)}%
                       </span>
                     </div>
                     <p className="text-[11px] text-muted-foreground leading-snug">{cf.explanation}</p>

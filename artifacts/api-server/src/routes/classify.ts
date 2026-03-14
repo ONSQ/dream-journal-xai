@@ -180,15 +180,14 @@ function computeLIME(
   scores: TokenScore[],
   wordCount: number,
   limit = 8
-): Array<{ word: string; weight: number }> {
+): Array<{ word: string; weight: number; rawWeight: number; negated: boolean }> {
   const baseProbRaw = computeProbabilityFromScores(scores, wordCount);
 
   return scores.slice(0, limit).map(feature => {
     const withoutFeature = scores.filter(s => s.word !== feature.word);
     const probWithout = computeProbabilityFromScores(withoutFeature, wordCount);
-    // delta = how much probability drops when this word is removed
     const limeWeight = +(baseProbRaw - probWithout).toFixed(3);
-    return { word: feature.word, weight: limeWeight };
+    return { word: feature.word, weight: limeWeight, rawWeight: +feature.rawWeight.toFixed(3), negated: feature.negated };
   }).sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight));
 }
 
@@ -399,10 +398,15 @@ router.post("/classify", (req: Request, res: Response) => {
       Maintenance: +(rawMaintenance / total).toFixed(4),
     };
 
-    // SHAP: top weighted features (positive only)
+    // SHAP: top weighted features (include negated for transparency)
     const topFeat = (scores: TokenScore[], n = 8) =>
-      scores.filter(s => !s.negated && s.normalizedWeight > 0).slice(0, n)
-        .map(s => ({ word: s.word, weight: +s.normalizedWeight.toFixed(3) }));
+      scores.slice(0, n)
+        .map(s => ({
+          word: s.word,
+          weight: +s.normalizedWeight.toFixed(3),
+          rawWeight: +s.rawWeight.toFixed(3),
+          negated: s.negated,
+        }));
 
     const shapSpiritual = topFeat(spiritualScores);
     const shapTrauma = topFeat(traumaScores);

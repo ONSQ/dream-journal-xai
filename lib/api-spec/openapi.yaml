@@ -193,7 +193,13 @@ components:
           type: string
         weight:
           type: number
-      required: [word, weight]
+        rawWeight:
+          type: number
+          description: Original lexicon weight before normalization
+        negated:
+          type: boolean
+          description: Whether the keyword was preceded by a negation word
+      required: [word, weight, rawWeight, negated]
     DimensionFeatures:
       type: object
       properties:

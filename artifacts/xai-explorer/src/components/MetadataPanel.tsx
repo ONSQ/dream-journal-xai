@@ -10,11 +10,12 @@ export function MetadataPanel({ result }: Props) {
       <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
         Classification Metadata
       </h3>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <InfoCard label="Source Type" value={result.sourceInfo.title} icon={result.sourceInfo.icon} />
         <InfoCard label="Word Count" value={String(result.wordCount)} sub={result.wordCount < 30 ? "Below 30-word threshold" : "Adequate"} />
         <InfoCard label="Negations" value={String(result.negationsDetected)} sub="Keywords negated" />
         <InfoCard label="Field Weighting" value={result.fieldWeighting ? "Multi-field" : "Single text"} />
+        <InfoCard label="Model Version" value="v1.0-keyword" sub="Lexicon-based classifier" />
       </div>
       <div className={`rounded-lg border p-3 ${
         result.sourceInfo.color === "indigo" ? "border-indigo-500/30 bg-indigo-500/5" :

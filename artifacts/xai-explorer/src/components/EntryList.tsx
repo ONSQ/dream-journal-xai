@@ -2,6 +2,13 @@ import { useState, useMemo } from "react";
 import type { JournalEntry, Dimension } from "../lib/types";
 import { DIMENSION_COLORS } from "../lib/colors";
 
+const MODE_LABELS: Record<string, string> = {
+  vigilant: "Dream",
+  restored: "Healing",
+  dream: "Dream",
+  healing: "Healing",
+};
+
 interface Props {
   entries: JournalEntry[];
   selectedId: string | null;
@@ -11,15 +18,23 @@ interface Props {
 export function EntryList({ entries, selectedId, onSelect }: Props) {
   const [search, setSearch] = useState("");
 
+  const sorted = useMemo(() => {
+    return [...entries].sort((a, b) => {
+      const da = new Date(a.entryDate).getTime();
+      const db = new Date(b.entryDate).getTime();
+      return db - da;
+    });
+  }, [entries]);
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return entries;
+    if (!search.trim()) return sorted;
     const q = search.toLowerCase();
-    return entries.filter((e) => {
+    return sorted.filter((e) => {
       const title = (e.data?.title as string) || "";
       const narrative = (e.data?.narrative as string) || "";
       return title.toLowerCase().includes(q) || narrative.toLowerCase().includes(q);
     });
-  }, [entries, search]);
+  }, [sorted, search]);
 
   return (
     <div className="flex flex-col h-full">
@@ -44,6 +59,7 @@ export function EntryList({ entries, selectedId, onSelect }: Props) {
             const isSelected = entry.clientId === selectedId;
             const topDim = cls ? (Object.entries(cls.probabilities) as [Dimension, number][])
               .sort((a, b) => b[1] - a[1])[0] : null;
+            const modeLabel = MODE_LABELS[entry.mode] || entry.mode;
 
             return (
               <button
@@ -57,7 +73,7 @@ export function EntryList({ entries, selectedId, onSelect }: Props) {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-foreground truncate">{title}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {entry.mode === "dream" ? "Dream" : "Healing"} · {entry.entryDate}
+                      {modeLabel} · {entry.entryDate.split("T")[0]}
                     </p>
                   </div>
                   {topDim && cls && (

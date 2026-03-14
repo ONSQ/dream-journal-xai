@@ -68,18 +68,24 @@ export const ClassifyDreamResponse = zod.object({
       zod.object({
         word: zod.string(),
         weight: zod.number(),
+        rawWeight: zod.number().describe("Original lexicon weight before normalization"),
+        negated: zod.boolean().describe("Whether the keyword was preceded by a negation word"),
       }),
     ),
     Trauma: zod.array(
       zod.object({
         word: zod.string(),
         weight: zod.number(),
+        rawWeight: zod.number().describe("Original lexicon weight before normalization"),
+        negated: zod.boolean().describe("Whether the keyword was preceded by a negation word"),
       }),
     ),
     Maintenance: zod.array(
       zod.object({
         word: zod.string(),
         weight: zod.number(),
+        rawWeight: zod.number().describe("Original lexicon weight before normalization"),
+        negated: zod.boolean().describe("Whether the keyword was preceded by a negation word"),
       }),
     ),
   }),
@@ -88,18 +94,24 @@ export const ClassifyDreamResponse = zod.object({
       zod.object({
         word: zod.string(),
         weight: zod.number(),
+        rawWeight: zod.number().describe("Original lexicon weight before normalization"),
+        negated: zod.boolean().describe("Whether the keyword was preceded by a negation word"),
       }),
     ),
     Trauma: zod.array(
       zod.object({
         word: zod.string(),
         weight: zod.number(),
+        rawWeight: zod.number().describe("Original lexicon weight before normalization"),
+        negated: zod.boolean().describe("Whether the keyword was preceded by a negation word"),
       }),
     ),
     Maintenance: zod.array(
       zod.object({
         word: zod.string(),
         weight: zod.number(),
+        rawWeight: zod.number().describe("Original lexicon weight before normalization"),
+        negated: zod.boolean().describe("Whether the keyword was preceded by a negation word"),
       }),
     ),
   }),

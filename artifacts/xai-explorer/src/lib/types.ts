@@ -1,6 +1,8 @@
 export interface TokenFeature {
   word: string;
   weight: number;
+  rawWeight: number;
+  negated: boolean;
 }
 
 export interface ConfidenceInterval {
