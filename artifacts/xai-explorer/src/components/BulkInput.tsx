@@ -49,7 +49,7 @@ export function BulkInput() {
         results[idx] = { ...results[idx], status: "classifying" };
         setItems([...results]);
         try {
-          const r = await classifyDream({ text: results[idx].text }) as unknown as XAIResult;
+          const r = await classifyDream({ text: results[idx].text });
           results[idx] = { ...results[idx], status: "done", result: r };
         } catch (err) {
           results[idx] = {

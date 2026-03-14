@@ -47,6 +47,8 @@ export interface ClassifyRequest {
 export interface FeatureWeight {
   word: string;
   weight: number;
+  rawWeight: number;
+  negated: boolean;
 }
 
 export interface DimensionFeatures {

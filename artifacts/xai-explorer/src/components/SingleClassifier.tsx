@@ -19,9 +19,8 @@ export function SingleClassifier({ onResult }: Props) {
     setError(null);
     try {
       const r = await classifyMutation.mutateAsync({ data: { text } });
-      const xaiResult = r as unknown as XAIResult;
-      setResult(xaiResult);
-      onResult?.(xaiResult, text);
+      setResult(r);
+      onResult?.(r, text);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Classification failed");
     }
