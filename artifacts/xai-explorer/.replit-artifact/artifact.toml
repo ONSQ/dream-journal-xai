@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/xai-explorer/"
+title = "XAI Explorer"
+version = "1.0.0"
+id = "artifacts/xai-explorer"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+localPort = 19823
+name = "web"
+paths = ["/xai-explorer/"]
+
+[services.development]
+run = "pnpm --filter @workspace/xai-explorer run dev"
+
+[services.env]
+PORT = "19823"
+BASE_PATH = "/xai-explorer/"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/xai-explorer", "run", "build"]
+publicDir = "artifacts/xai-explorer/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"

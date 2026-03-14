@@ -22,7 +22,8 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 artifacts-monorepo/
 ├── artifacts/              # Deployable applications
 │   ├── api-server/         # Express API server
-│   └── vigilant-spirit/    # Vigilant Spirit Dream Journal (React + Vite)
+│   ├── vigilant-spirit/    # Vigilant Spirit Dream Journal (React + Vite)
+│   └── xai-explorer/       # XAI Explorer (React + Vite, served at /xai-explorer/)
 ├── lib/                    # Shared libraries
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
 │   ├── api-client-react/   # Generated React Query hooks
@@ -73,6 +74,23 @@ artifacts-monorepo/
 - `DELETE /api/entries/:clientId` — delete an entry
 
 **Data storage:** PostgreSQL via `journal_entries` table (Drizzle ORM). Falls back to localStorage while API is loading. localStorage also acts as a local cache for offline resilience.
+
+## XAI Explorer
+
+**App:** `artifacts/xai-explorer` (React + Vite, served at `/xai-explorer/`)
+
+**Description:** A standalone XAI model inspection tool for deep-diving into dream classification outputs. Complements the main Vigilant Spirit Dream Journal.
+
+**Three Tabs:**
+1. **Entries** — Browse all journal entries from the database in a sidebar. Click to see full XAI breakdown (probability bars with 95% CI overlays, SHAP feature attribution tables, LIME local explanations, counterfactual "what if" cards, metadata panel with source type, guidance, and full interpretation).
+2. **Classify** — Single-text live classifier. Paste any dream narrative, get instant XAI output with all 10 explainability features.
+3. **Bulk** — Paste multiple texts separated by `---` (or CSV rows). Concurrent classification (3 parallel requests), progress counter, card grid of results with expandable detail.
+
+**Report Export:** CSV, JSON, or PDF (via html2canvas + jsPDF). Export classified entries or single results.
+
+**Dependencies:** recharts, html2canvas, jspdf (no api-client-react — uses direct fetch to `/api` via Vite proxy)
+
+**API Proxy:** Vite dev server proxies `/api` → `http://localhost:8080` (the shared api-server).
 
 ## TypeScript & Composite Projects
 
