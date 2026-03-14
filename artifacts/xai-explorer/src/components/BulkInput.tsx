@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from "react";
-import { classifyDream } from "@workspace/api-client-react";
 import type { BulkItem, XAIResult, Dimension } from "../lib/types";
+import { classifyText } from "../lib/api-hooks";
 import { DIMENSION_COLORS, DIMENSIONS } from "../lib/colors";
 
 const CONCURRENCY = 3;
@@ -49,7 +49,7 @@ export function BulkInput() {
         results[idx] = { ...results[idx], status: "classifying" };
         setItems([...results]);
         try {
-          const r = await classifyDream({ text: results[idx].text });
+          const r = await classifyText(results[idx].text);
           results[idx] = { ...results[idx], status: "done", result: r };
         } catch (err) {
           results[idx] = {

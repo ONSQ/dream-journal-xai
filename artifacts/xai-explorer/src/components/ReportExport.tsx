@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from "react";
-import type { XAIResult, Dimension, JournalEntry } from "../lib/types";
+import type { XAIResult, Dimension, JournalEntry, TokenFeature } from "../lib/types";
 import { DIMENSIONS } from "../lib/colors";
 
 interface Props {
@@ -77,9 +77,9 @@ export function ReportExport({ entries, singleResult, singleText }: Props) {
         esc(r.sourceType),
         r.wordCount,
         r.negationsDetected,
-        esc(r.shap.Spiritual.map((f) => `${f.word}:${f.weight}`).join(";")),
-        esc(r.shap.Trauma.map((f) => `${f.word}:${f.weight}`).join(";")),
-        esc(r.shap.Maintenance.map((f) => `${f.word}:${f.weight}`).join(";")),
+        esc(r.shap.Spiritual.map((f: TokenFeature) => `${f.word}:${f.weight}`).join(";")),
+        esc(r.shap.Trauma.map((f: TokenFeature) => `${f.word}:${f.weight}`).join(";")),
+        esc(r.shap.Maintenance.map((f: TokenFeature) => `${f.word}:${f.weight}`).join(";")),
       ];
     });
     const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");

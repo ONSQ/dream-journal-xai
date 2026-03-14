@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useListEntries, useClassifyDream } from "@workspace/api-client-react";
 import type { XAIResult, JournalEntry } from "./lib/types";
+import { useEntries } from "./lib/api-hooks";
 import { EntryList } from "./components/EntryList";
 import { XAIDetailPanel } from "./components/XAIDetailPanel";
 import { SingleClassifier } from "./components/SingleClassifier";
@@ -18,8 +18,7 @@ function AppContent() {
   const [classifyResult, setClassifyResult] = useState<XAIResult | null>(null);
   const [classifyText, setClassifyText] = useState("");
 
-  const { data: entriesData, isLoading, error: fetchError } = useListEntries();
-  const entries = (entriesData?.entries ?? []) as JournalEntry[];
+  const { entries, isLoading, error: fetchError } = useEntries();
 
   const firstClassified = entries.find((e) => e.data?._classification);
   const effectiveSelectedId = selectedId ?? firstClassified?.clientId ?? null;

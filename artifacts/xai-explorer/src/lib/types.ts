@@ -1,27 +1,55 @@
-import type {
-  ClassifyResponse,
-  FeatureWeight,
-  ConfidenceInterval,
-  Counterfactual,
-  JournalEntry as GeneratedJournalEntry,
-  JournalEntryData,
-} from "@workspace/api-client-react/src/generated/api.schemas";
+export interface TokenFeature {
+  word: string;
+  weight: number;
+  rawWeight: number;
+  negated: boolean;
+}
 
-export type TokenFeature = FeatureWeight;
+export interface ConfidenceInterval {
+  lower: number;
+  upper: number;
+  adequate: boolean;
+}
 
-export type { ConfidenceInterval, Counterfactual };
+export interface Counterfactual {
+  remove: string;
+  newProbability: number;
+  delta: number;
+  explanation: string;
+}
 
 export type Dimension = "Spiritual" | "Trauma" | "Maintenance";
 
-export type XAIResult = ClassifyResponse;
-
-export interface JournalEntry extends Omit<GeneratedJournalEntry, 'data'> {
-  id?: number;
-  data: JournalEntryData & {
-    _classification?: XAIResult;
-    title?: string;
-    narrative?: string;
+export interface XAIResult {
+  success: boolean;
+  probabilities: Record<Dimension, number>;
+  shap: Record<Dimension, TokenFeature[]>;
+  lime: Record<Dimension, TokenFeature[]>;
+  agreement: Record<Dimension, number>;
+  confidenceIntervals: Record<Dimension, ConfidenceInterval>;
+  counterfactuals: Record<Dimension, Counterfactual[]>;
+  sourceType: string;
+  sourceInfo: {
+    title: string;
+    icon: string;
+    color: string;
+    guidance: string;
   };
+  interpretation: string;
+  dimensionInterpretations: Record<Dimension, string>;
+  wordCount: number;
+  negationsDetected: number;
+  fieldWeighting: boolean;
+}
+
+export interface JournalEntry {
+  clientId: string;
+  mode: string;
+  phase: string;
+  entryDate: string;
+  data: Record<string, unknown> & { _classification?: XAIResult; title?: string; narrative?: string };
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface BulkItem {
