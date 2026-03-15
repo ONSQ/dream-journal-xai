@@ -1,30 +1,40 @@
 modules = ["nodejs-24"]
 
-[[artifacts]]
-id = "artifacts/api-server"
+  [[artifacts]]
+  id = "artifacts/api-server"
 
-[[artifacts]]
-id = "artifacts/mockup-sandbox"
+  [[artifacts]]
+  id = "artifacts/vigilant-spirit"
 
-[deployment]
-router = "application"
-deploymentTarget = "autoscale"
+  [[artifacts]]
+  id = "artifacts/xai-explorer"
 
-[deployment.postBuild]
-args = ["pnpm", "store", "prune"]
-env = { "CI" = "true" }
+  [[artifacts]]
+  id = "artifacts/mockup-sandbox"
 
-[workflows]
-runButton = "Project"
+  [deployment]
+  router = "application"
+  deploymentTarget = "autoscale"
 
-[agent]
-stack = "PNPM_WORKSPACE"
-expertMode = true
-integrations = ["github:1.0.0"]
+  [deployment.build]
+  args = ["bash", "-c", "pnpm install --frozen-lockfile && pnpm --filter '!@workspace/mockup-sandbox' -r --if-present run build"]
 
-[postMerge]
-path = "scripts/post-merge.sh"
-timeoutMs = 20000
+  [deployment.postBuild]
+  args = ["pnpm", "store", "prune"]
+  env = { "CI" = "true" }
 
-[nix]
-channel = "stable-25_05"
+  [workflows]
+  runButton = "Project"
+
+  [agent]
+  stack = "PNPM_WORKSPACE"
+  expertMode = true
+  integrations = ["github:1.0.0"]
+
+  [postMerge]
+  path = "scripts/post-merge.sh"
+  timeoutMs = 20000
+
+  [nix]
+  channel = "stable-25_05"
+  
