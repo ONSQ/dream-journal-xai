@@ -10,13 +10,14 @@ fi
 
 mkdir -p ~/.ssh
 
-# Decode the base64-encoded private key to the key file
+# Decode the base64-encoded private key
 echo "$GITHUB_DEPLOY_KEY" | base64 -d > /tmp/deploy_key
 chmod 600 /tmp/deploy_key
 
-# Ensure SSH config points to this key
-if ! grep -q "IdentityFile /tmp/deploy_key" ~/.ssh/config 2>/dev/null; then
-  cat >> ~/.ssh/config <<EOF
+# Rebuild SSH config from scratch for github.com to avoid stale entries
+TMPCONF=$(mktemp)
+grep -v -A 5 "^Host github.com" ~/.ssh/config 2>/dev/null | grep -v "HostName github.com" | grep -v "User git" | grep -v "IdentityFile /tmp/deploy_key" | grep -v "StrictHostKeyChecking" > "$TMPCONF" || true
+cat >> "$TMPCONF" <<EOF
 
 Host github.com
   HostName github.com
@@ -24,6 +25,11 @@ Host github.com
   IdentityFile /tmp/deploy_key
   StrictHostKeyChecking no
 EOF
-fi
+mv "$TMPCONF" ~/.ssh/config
+chmod 600 ~/.ssh/config
 
-echo "SSH deploy key restored successfully."
+# Also configure git to use the explicit key (bypasses SSH agent caching issues)
+git config --global core.sshCommand "ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no"
+
+echo "SSH deploy key restored. Testing connection..."
+ssh -T git@github.com 2>&1 || true
