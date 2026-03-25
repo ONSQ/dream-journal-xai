@@ -1565,12 +1565,18 @@ export default function Journal() {
   const isEvening = timeOfDay >= 18 || timeOfDay < 6;
   const scripture = getDailyScripture(SCRIPTURES[mode === 'vigilant' ? 'dreams' : 'protection']);
 
-  const startNewEntry = () => {
+  const startNewEntry = (isMorning: boolean) => {
+    let phase: JournalEntry['phase'];
+    if (mode === 'vigilant') {
+      phase = isMorning ? 'capture' : 'presleep';
+    } else {
+      phase = isMorning ? 'witness' : 'evening';
+    }
     const newEntry: JournalEntry = {
       id: Date.now(),
       date: new Date().toISOString(),
       mode,
-      phase: mode === 'vigilant' ? 'presleep' : 'evening',
+      phase,
       data: {}
     };
     setCurrentEntry(newEntry);
@@ -1704,17 +1710,30 @@ export default function Journal() {
                             : "If you had a nightmare, process it safely using Image Rehearsal Therapy."
                         }
                       </p>
-                      <button
-                        onClick={startNewEntry}
-                        className={`px-6 py-3.5 rounded-xl font-medium flex items-center gap-2 shadow-lg transition-all active:scale-95 min-h-[52px] ${
-                          mode === 'vigilant' 
-                            ? 'bg-primary text-primary-foreground shadow-primary/20 hover:bg-primary/90' 
-                            : 'bg-secondary text-secondary-foreground shadow-secondary/20 hover:bg-secondary/90'
-                        }`}
-                      >
-                        <Plus className="w-5 h-5" />
-                        {isEvening ? 'Begin Evening Ritual' : 'Capture Dream'}
-                      </button>
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <button
+                          onClick={() => startNewEntry(true)}
+                          className={`px-5 py-3.5 rounded-xl font-medium flex items-center gap-2 shadow-lg transition-all active:scale-95 min-h-[52px] ${
+                            mode === 'vigilant' 
+                              ? 'bg-primary text-primary-foreground shadow-primary/20 hover:bg-primary/90' 
+                              : 'bg-secondary text-secondary-foreground shadow-secondary/20 hover:bg-secondary/90'
+                          }`}
+                        >
+                          <Sun className="w-5 h-5" />
+                          Good Morning: Capture Dream
+                        </button>
+                        <button
+                          onClick={() => startNewEntry(false)}
+                          className={`px-5 py-3.5 rounded-xl font-medium flex items-center gap-2 shadow-lg transition-all active:scale-95 min-h-[52px] ${
+                            mode === 'vigilant'
+                              ? 'bg-indigo-900/60 text-indigo-200 border border-indigo-500/30 hover:bg-indigo-800/60'
+                              : 'bg-purple-900/60 text-purple-200 border border-purple-500/30 hover:bg-purple-800/60'
+                          }`}
+                        >
+                          <Moon className="w-5 h-5" />
+                          Good Evening: Prepare for Sleep
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1813,17 +1832,30 @@ export default function Journal() {
                         ? 'Each morning is an opportunity to receive what God speaks in the night. Begin your first entry.'
                         : 'The Restored Night helps you process nightmares safely and find peace. Start tonight.'}
                     </p>
-                    <button
-                      onClick={startNewEntry}
-                      className={`mt-6 px-6 py-3 rounded-xl font-medium flex items-center gap-2 mx-auto transition-all active:scale-95 min-h-[48px] ${
-                        mode === 'vigilant'
-                          ? 'bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30'
-                          : 'bg-secondary/20 hover:bg-secondary/30 text-secondary border border-secondary/30'
-                      }`}
-                    >
-                      <Plus className="w-4 h-4" />
-                      Start First Entry
-                    </button>
+                    <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
+                      <button
+                        onClick={() => startNewEntry(true)}
+                        className={`px-5 py-3 rounded-xl font-medium flex items-center gap-2 transition-all active:scale-95 min-h-[48px] ${
+                          mode === 'vigilant'
+                            ? 'bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30'
+                            : 'bg-secondary/20 hover:bg-secondary/30 text-secondary border border-secondary/30'
+                        }`}
+                      >
+                        <Sun className="w-4 h-4" />
+                        Good Morning: Capture Dream
+                      </button>
+                      <button
+                        onClick={() => startNewEntry(false)}
+                        className={`px-5 py-3 rounded-xl font-medium flex items-center gap-2 transition-all active:scale-95 min-h-[48px] ${
+                          mode === 'vigilant'
+                            ? 'bg-slate-800/60 hover:bg-slate-700/60 text-slate-300 border border-slate-600/30'
+                            : 'bg-slate-800/60 hover:bg-slate-700/60 text-slate-300 border border-slate-600/30'
+                        }`}
+                      >
+                        <Moon className="w-4 h-4" />
+                        Good Evening: Prepare for Sleep
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
