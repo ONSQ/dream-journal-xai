@@ -17,14 +17,7 @@ modules = ["nodejs-24"]
   deploymentTarget = "autoscale"
 
   [deployment.build]
-  args = ["bash", "-c", "pnpm install --frozen-lockfile && pnpm -r --if-present run build"]
-
-  [deployment.run]
-  args = ["pnpm", "--filter", "@workspace/api-server", "run", "start"]
-
-  [deployment.postBuild]
-  args = ["pnpm", "store", "prune"]
-  env = { "CI" = "true" }
+  args = ["pnpm", "install", "--frozen-lockfile"]
 
   [workflows]
   runButton = "Project"
