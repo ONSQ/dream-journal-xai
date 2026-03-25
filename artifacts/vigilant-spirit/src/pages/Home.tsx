@@ -167,6 +167,7 @@ function SpeechButton({ value, onChange }: { value: string; onChange: (v: string
   const [interim, setInterim] = useState('');
   const recognitionRef = useRef<any>(null);
   const valueRef = useRef(value);
+  const committedIndexRef = useRef(0);
   useEffect(() => { valueRef.current = value; }, [value]);
 
   const isSupported = typeof window !== 'undefined' &&
@@ -185,6 +186,7 @@ function SpeechButton({ value, onChange }: { value: string; onChange: (v: string
   const startRecording = () => {
     _speechTracker.stop?.();
     _speechTracker.stop = stopRecording;
+    committedIndexRef.current = 0;
 
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     const recognition = new SR();
@@ -196,10 +198,18 @@ function SpeechButton({ value, onChange }: { value: string; onChange: (v: string
     recognition.onresult = (event: any) => {
       let finalText = '';
       let interimText = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
+      // Use max of event.resultIndex and our own committed index to guard against
+      // browsers (e.g. Chrome mobile) that always report resultIndex = 0, which
+      // would cause already-committed results to be appended again.
+      const startIndex = Math.max(event.resultIndex, committedIndexRef.current);
+      for (let i = startIndex; i < event.results.length; i++) {
         const t = event.results[i][0].transcript;
-        if (event.results[i].isFinal) finalText += t;
-        else interimText += t;
+        if (event.results[i].isFinal) {
+          finalText += t;
+          committedIndexRef.current = i + 1;
+        } else {
+          interimText += t;
+        }
       }
       if (finalText) {
         const cur = valueRef.current;
