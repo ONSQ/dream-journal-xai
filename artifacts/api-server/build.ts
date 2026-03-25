@@ -39,11 +39,15 @@ const allowlist = [
 ];
 
 async function buildAll() {
-  console.log("pushing database schema...");
-  execSync("pnpm --filter @workspace/db run push", {
-    stdio: "inherit",
-    cwd: path.resolve(__dirname, "../.."),
-  });
+  if (process.env["DATABASE_URL"]) {
+    console.log("pushing database schema...");
+    execSync("pnpm --filter @workspace/db run push", {
+      stdio: "inherit",
+      cwd: path.resolve(__dirname, "../.."),
+    });
+  } else {
+    console.log("skipping database push (DATABASE_URL not set)");
+  }
 
   const distDir = path.resolve(__dirname, "dist");
   await rm(distDir, { recursive: true, force: true });
