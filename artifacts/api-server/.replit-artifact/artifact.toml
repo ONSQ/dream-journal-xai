@@ -13,13 +13,8 @@ paths = ["/api"]
 run = "pnpm --filter @workspace/api-server run dev"
 
 [services.production]
-build = "pnpm --filter @workspace/api-server run build"
-
-[services.production.run]
-args = ["node", "artifacts/api-server/dist/index.cjs"]
-
-[services.production.run.env]
-PORT = "8080"
+build = ["bash", "-c", "pnpm --filter @workspace/api-server run build && pnpm --filter @workspace/vigilant-spirit run build && pnpm --filter @workspace/xai-explorer run build"]
+run = ["node", "artifacts/api-server/dist/index.cjs"]
 
 [services.production.health.startup]
 path = "/api/healthz"
