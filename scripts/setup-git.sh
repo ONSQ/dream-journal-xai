@@ -1,5 +1,5 @@
 #!/bin/bash
-# Restores the GitHub deploy key from the GITHUB_DEPLOY_KEY secret
+# Restores the GitHub deploy key from the GITHUB_DEPLOY_KEY secret (base64-encoded)
 # Run this at the start of any session that needs to push to GitHub
 set -e
 
@@ -10,11 +10,11 @@ fi
 
 mkdir -p ~/.ssh
 
-# Write key — handle both literal newlines and escaped \n
-echo "$GITHUB_DEPLOY_KEY" | sed 's/\\n/\n/g' > /tmp/deploy_key
+# Decode the base64-encoded private key to the key file
+echo "$GITHUB_DEPLOY_KEY" | base64 -d > /tmp/deploy_key
 chmod 600 /tmp/deploy_key
 
-# Ensure the SSH config points to this key
+# Ensure SSH config points to this key
 if ! grep -q "IdentityFile /tmp/deploy_key" ~/.ssh/config 2>/dev/null; then
   cat >> ~/.ssh/config <<EOF
 
