@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Moon, Sun, BookOpen, Shield, Brain, Heart, ChevronRight, 
   ChevronDown, Sparkles, AlertTriangle, Check, X, Plus, Zap, Loader2,
-  Copy, RefreshCw, TrendingUp, Download, Eye, ChevronLeft, Wind, Mic
+  Copy, RefreshCw, TrendingUp, Download, Eye, ChevronLeft, Wind, Mic, ExternalLink
 } from 'lucide-react';
 import { useClassifyDream, useModelHealth } from "@workspace/api-client-react";
 import { useJournalEntries, type JournalEntry, type JournalMode } from '@/hooks/use-journal';
@@ -1621,6 +1621,13 @@ export default function Journal() {
           </button>
 
           <div className="flex items-center gap-2">
+            <a
+              href="/xai-explorer/"
+              className="p-2.5 rounded-xl transition-all min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/10"
+              title="XAI Explorer"
+            >
+              <ExternalLink className="w-5 h-5" />
+            </a>
             <button
               onClick={() => setCurrentView(currentView === 'trends' ? 'home' : 'trends')}
               className={`p-2.5 rounded-xl transition-all min-h-[44px] min-w-[44px] flex items-center justify-center ${currentView === 'trends' ? 'bg-slate-800 text-primary' : 'text-slate-500 hover:text-white hover:bg-white/10'}`}

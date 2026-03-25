@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { Moon } from "lucide-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { XAIResult, JournalEntry } from "./lib/types";
 import { useEntries } from "./lib/api-hooks";
@@ -61,6 +62,14 @@ function AppContent() {
           </nav>
         </div>
         <div className="flex items-center gap-2">
+          <a
+            href="/"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all"
+            title="Dream Journal"
+          >
+            <Moon className="w-4 h-4" />
+            <span className="hidden sm:inline">Dream Journal</span>
+          </a>
           <ReportExport entries={entries} singleResult={activeResult} singleText={activeText} />
         </div>
       </header>
