@@ -1,0 +1,13 @@
+Please update the UI flow in [artifacts/vigilant-spirit/src/pages/Home.tsx](cci:7://file:///c:/Users/onsq/OneDrive/Documents/School/AI_Trust_and%20Confidence/XAI_Dream_Project_and%20App/dream-journal-xai/artifacts/vigilant-spirit/src/pages/Home.tsx:0:0-0:0) to decouple the Evening Ritual from the Morning Dream Entry. 
+
+Currently, [startNewEntry](cci:1://file:///c:/Users/onsq/OneDrive/Documents/School/AI_Trust_and%20Confidence/XAI_Dream_Project_and%20App/dream-journal-xai/artifacts/vigilant-spirit/src/pages/Home.tsx:1567:2-1577:4) forces a starting phase based on the time of day (`phase: mode === 'vigilant' ? 'presleep' : 'evening'`). I want to give the user explicit choices on the dashboard instead.
+
+Please make the following changes:
+1. Modify [startNewEntry(isMorning: boolean)](cci:1://file:///c:/Users/onsq/OneDrive/Documents/School/AI_Trust_and%20Confidence/XAI_Dream_Project_and%20App/dream-journal-xai/artifacts/vigilant-spirit/src/pages/Home.tsx:1567:2-1577:4) to accept an argument.
+   - If `isMorning` is true: start Vigilant mode at `phase: 'capture'` and Restored mode at `phase: 'witness'`. 
+   - If `isMorning` is false: start Vigilant mode at `phase: 'presleep'` and Restored mode at `phase: 'evening'`.
+2. In the main Welcome Card (around line 1707), replace the single dynamic button with TWO side-by-side buttons:
+   - Button 1: "Good Morning: Capture Dream" (calls [startNewEntry(true)](cci:1://file:///c:/Users/onsq/OneDrive/Documents/School/AI_Trust_and%20Confidence/XAI_Dream_Project_and%20App/dream-journal-xai/artifacts/vigilant-spirit/src/pages/Home.tsx:1567:2-1577:4)) with a Sun icon.
+   - Button 2: "Good Evening: Prepare for Sleep" (calls [startNewEntry(false)](cci:1://file:///c:/Users/onsq/OneDrive/Documents/School/AI_Trust_and%20Confidence/XAI_Dream_Project_and%20App/dream-journal-xai/artifacts/vigilant-spirit/src/pages/Home.tsx:1567:2-1577:4)) with a Moon icon.
+3. Update the Empty State fallback (around line 1817) to also display these same two buttons instead of "Start First Entry".
+4. Ensure the UI still looks visually polished and balanced with the new dual-button layout.
