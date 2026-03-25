@@ -17,7 +17,7 @@ modules = ["nodejs-24"]
   deploymentTarget = "autoscale"
 
   [deployment.build]
-  args = ["bash", "-c", "pnpm install --frozen-lockfile && pnpm --filter !@workspace/mockup-sandbox -r --if-present run build"]
+  args = ["bash", "-c", "pnpm install --frozen-lockfile && pnpm -r --if-present run build"]
 
   [deployment.run]
   args = ["pnpm", "--filter", "@workspace/api-server", "run", "start"]
