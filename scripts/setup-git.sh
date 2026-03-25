@@ -9,9 +9,12 @@ if [ -z "$GITHUB_DEPLOY_KEY" ]; then
 fi
 
 mkdir -p ~/.ssh
-printf '%s' "$GITHUB_DEPLOY_KEY" > /tmp/deploy_key
+
+# Write key — handle both literal newlines and escaped \n
+echo "$GITHUB_DEPLOY_KEY" | sed 's/\\n/\n/g' > /tmp/deploy_key
 chmod 600 /tmp/deploy_key
 
+# Ensure the SSH config points to this key
 if ! grep -q "IdentityFile /tmp/deploy_key" ~/.ssh/config 2>/dev/null; then
   cat >> ~/.ssh/config <<EOF
 
